@@ -1,0 +1,27 @@
+server:
+  port: 8889
+
+spring:
+  application:
+    name: bjtu-review-system
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/bjtu_review?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: root
+    password: 'zhx114514@JY'
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+
+jwt:
+  secret: bjtu-review-system-secret-key-2024-must-be-at-least-256-bits-long
+  expiration: 86400000
+
+# 敏感词列表（逗号分隔）
+sensitive-words: 傻逼,垃圾老师,骗子,作弊
