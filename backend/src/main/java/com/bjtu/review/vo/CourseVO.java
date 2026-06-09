@@ -13,8 +13,9 @@ public class CourseVO {
     private Long teacherId;
     private String teacherName;
     private Double avgScore;
-    private Double difficultyScore;
     private Double gradingScore;
+    private Double avgTeachingScore;
+    private Double avgWorkloadScore;
     private Integer reviewCount;
     private List<String> topTags;
 }

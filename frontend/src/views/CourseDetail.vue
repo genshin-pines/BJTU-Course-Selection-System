@@ -25,8 +25,9 @@
             <span class="big-label">综合评分</span>
           </div>
           <div class="sub-scores">
-            <span>难度 {{ course.difficultyScore?.toFixed(1) || '-' }}</span>
             <span>给分 {{ course.gradingScore?.toFixed(1) || '-' }}</span>
+            <span>授课 {{ course.avgTeachingScore?.toFixed(1) || '-' }}</span>
+            <span>作业 {{ course.avgWorkloadScore?.toFixed(1) || '-' }}</span>
           </div>
         </div>
       </div>
@@ -50,9 +51,9 @@
             </div>
           </div>
           <div class="review-scores">
-            <el-tag type="primary">综合 {{ review.overallScore }}</el-tag>
-            <el-tag type="warning">难度 {{ review.difficultyScore }}</el-tag>
-            <el-tag type="success">给分 {{ review.gradingScore }}</el-tag>
+            <el-tag type="primary">给分 {{ review.gradingScore }}</el-tag>
+            <el-tag type="success">授课 {{ review.teachingScore }}</el-tag>
+            <el-tag type="warning">作业 {{ review.workloadScore }}</el-tag>
           </div>
         </div>
 

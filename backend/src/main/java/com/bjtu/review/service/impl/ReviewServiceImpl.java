@@ -64,14 +64,18 @@ public class ReviewServiceImpl implements ReviewService {
         review.setStudentId(studentId);
         review.setCourseId(request.getCourseId());
         review.setTeacherId(request.getTeacherId());
-        review.setOverallScore(request.getOverallScore());
-        review.setDifficultyScore(request.getDifficultyScore());
+        // overallScore 自动计算为三项平均分（四舍五入取整）
+        int autoOverall = (int) Math.round(
+            (request.getGradingScore() + request.getTeachingScore() + request.getWorkloadScore()) / 3.0);
+        review.setOverallScore(autoOverall);
         review.setGradingScore(request.getGradingScore());
+        review.setTeachingScore(request.getTeachingScore());
+        review.setWorkloadScore(request.getWorkloadScore());
         review.setContent(request.getContent());
         review.setStudyTips(request.getStudyTips());
         review.setExamType(request.getExamType());
         review.setLikeCount(0);
-        review.setStatus(ReviewStatus.PENDING.name());
+        review.setStatus(ReviewStatus.APPROVED.name());
         reviewMapper.insert(review);
 
         // 保存标签关联
@@ -80,6 +84,10 @@ public class ReviewServiceImpl implements ReviewService {
                 reviewTagMapper.insertTag(review.getId(), tagId);
             }
         }
+
+        // 即时更新课程和教师评分
+        courseMapper.updateScores(request.getCourseId());
+        teacherMapper.updateAvgScore(request.getTeacherId());
     }
 
     @Override
@@ -96,13 +104,17 @@ public class ReviewServiceImpl implements ReviewService {
             throw new RuntimeException("评价内容包含敏感词，请修改后重试");
         }
 
-        review.setOverallScore(request.getOverallScore());
-        review.setDifficultyScore(request.getDifficultyScore());
+        // overallScore 自动计算为三项平均分（四舍五入取整）
+        int autoOverall = (int) Math.round(
+            (request.getGradingScore() + request.getTeachingScore() + request.getWorkloadScore()) / 3.0);
+        review.setOverallScore(autoOverall);
         review.setGradingScore(request.getGradingScore());
+        review.setTeachingScore(request.getTeachingScore());
+        review.setWorkloadScore(request.getWorkloadScore());
         review.setContent(request.getContent());
         review.setStudyTips(request.getStudyTips());
         review.setExamType(request.getExamType());
-        review.setStatus(ReviewStatus.PENDING.name());
+        review.setStatus(ReviewStatus.APPROVED.name());
         reviewMapper.updateById(review);
 
         // 更新标签

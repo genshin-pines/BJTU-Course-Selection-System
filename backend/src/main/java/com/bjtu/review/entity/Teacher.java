@@ -11,4 +11,6 @@ public class Teacher {
     private String teacherName;
     private String department;
     private Double avgScore;
+    private Double avgTeachingScore;
+    private Double avgWorkloadScore;
 }

@@ -28,7 +28,9 @@ CREATE TABLE IF NOT EXISTS teacher
     id           BIGINT PRIMARY KEY AUTO_INCREMENT,
     teacher_name VARCHAR(100) NOT NULL COMMENT '教师姓名',
     department   VARCHAR(100) COMMENT '所属学院',
-    avg_score    DOUBLE      DEFAULT 0 COMMENT '平均综合评分'
+    avg_score         DOUBLE DEFAULT 0 COMMENT '平均综合评分',
+    avg_teaching_score DOUBLE DEFAULT 0 COMMENT '平均授课质量评分',
+    avg_workload_score DOUBLE DEFAULT 0 COMMENT '平均作业轻松度评分'
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT '教师表';
 
@@ -41,9 +43,10 @@ CREATE TABLE IF NOT EXISTS course
     credit           INT          DEFAULT 0 COMMENT '学分',
     department       VARCHAR(100) COMMENT '开课学院',
     teacher_id       BIGINT COMMENT '授课教师ID',
-    avg_score        DOUBLE       DEFAULT 0 COMMENT '平均综合评分',
-    difficulty_score DOUBLE       DEFAULT 0 COMMENT '平均难度评分',
-    grading_score    DOUBLE       DEFAULT 0 COMMENT '平均给分评分',
+    avg_score         DOUBLE       DEFAULT 0 COMMENT '平均综合评分',
+    grading_score     DOUBLE       DEFAULT 0 COMMENT '平均给分评分',
+    avg_teaching_score DOUBLE     DEFAULT 0 COMMENT '平均授课质量评分',
+    avg_workload_score DOUBLE     DEFAULT 0 COMMENT '平均作业轻松度评分',
     review_count     INT          DEFAULT 0 COMMENT '评价数量',
     INDEX idx_course_name (course_name),
     INDEX idx_course_code (course_code),
@@ -59,9 +62,10 @@ CREATE TABLE IF NOT EXISTS review
     student_id       BIGINT       NOT NULL COMMENT '学生ID',
     course_id        BIGINT       NOT NULL COMMENT '课程ID',
     teacher_id       BIGINT       NOT NULL COMMENT '教师ID',
-    overall_score    INT          NOT NULL COMMENT '综合评分 1-5',
-    difficulty_score INT          NOT NULL COMMENT '难度评分 1-5',
+    overall_score    INT          NOT NULL COMMENT '综合评分 1-5（自动计算：三项平均分四舍五入）',
     grading_score    INT          NOT NULL COMMENT '给分评分 1-5',
+    teaching_score   INT          NOT NULL DEFAULT 3 COMMENT '授课质量评分 1-5',
+    workload_score   INT          NOT NULL DEFAULT 3 COMMENT '作业轻松度评分 1-5',
     content          TEXT COMMENT '评价内容',
     study_tips       TEXT COMMENT '学习建议',
     exam_type        VARCHAR(200) COMMENT '考核方式',

@@ -13,8 +13,9 @@ public class Review {
     private Long courseId;
     private Long teacherId;
     private Integer overallScore;
-    private Integer difficultyScore;
     private Integer gradingScore;
+    private Integer teachingScore;
+    private Integer workloadScore;
     private String content;
     private String studyTips;
     private String examType;

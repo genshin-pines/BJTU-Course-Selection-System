@@ -27,7 +27,21 @@ public class StudentServiceImpl extends ServiceImpl<StudentMapper, Student> impl
         if (student == null) {
             throw new RuntimeException("学号不存在");
         }
-        if (!passwordEncoder.matches(request.getPassword(), student.getPassword())) {
+
+        boolean matched = false;
+        // 先尝试 BCrypt 匹配
+        try {
+            matched = passwordEncoder.matches(request.getPassword(), student.getPassword());
+        } catch (Exception ignored) {
+        }
+        // BCrypt 失败则尝试明文匹配（兜底，同时自动升级为 BCrypt）
+        if (!matched && request.getPassword().equals(student.getPassword())) {
+            matched = true;
+            // 自动升级密码为 BCrypt 哈希
+            student.setPassword(passwordEncoder.encode(request.getPassword()));
+            baseMapper.updateById(student);
+        }
+        if (!matched) {
             throw new RuntimeException("密码错误");
         }
         String token = jwtUtils.generateToken(student.getId(), "STUDENT", student.getStudentNo());

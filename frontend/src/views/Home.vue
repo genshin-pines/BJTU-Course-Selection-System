@@ -54,16 +54,16 @@
           </div>
           <div class="course-scores">
             <div class="score-item">
-              <span class="score-label">综合</span>
-              <span class="score-value">{{ course.avgScore?.toFixed(1) || '-' }}</span>
-            </div>
-            <div class="score-item">
-              <span class="score-label">难度</span>
-              <span class="score-value">{{ course.difficultyScore?.toFixed(1) || '-' }}</span>
-            </div>
-            <div class="score-item">
               <span class="score-label">给分</span>
               <span class="score-value">{{ course.gradingScore?.toFixed(1) || '-' }}</span>
+            </div>
+            <div class="score-item">
+              <span class="score-label">授课</span>
+              <span class="score-value">{{ course.avgTeachingScore?.toFixed(1) || '-' }}</span>
+            </div>
+            <div class="score-item">
+              <span class="score-label">作业</span>
+              <span class="score-value">{{ course.avgWorkloadScore?.toFixed(1) || '-' }}</span>
             </div>
           </div>
         </div>

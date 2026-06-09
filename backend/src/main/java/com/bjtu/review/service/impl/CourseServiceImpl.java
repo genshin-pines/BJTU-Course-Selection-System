@@ -41,7 +41,6 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         vo.setDepartment(course.getDepartment());
         vo.setTeacherId(course.getTeacherId());
         vo.setAvgScore(course.getAvgScore());
-        vo.setDifficultyScore(course.getDifficultyScore());
         vo.setGradingScore(course.getGradingScore());
         vo.setReviewCount(course.getReviewCount());
 

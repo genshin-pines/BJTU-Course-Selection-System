@@ -9,7 +9,7 @@
           <el-table-column prop="teacherName" label="教师" width="120" />
           <el-table-column label="评分" width="150">
             <template #default="{ row }">
-              综合: {{ row.overallScore }} | 难度: {{ row.difficultyScore }} | 给分: {{ row.gradingScore }}
+              给分: {{ row.gradingScore }} | 授课: {{ row.teachingScore }} | 作业: {{ row.workloadScore }}
             </template>
           </el-table-column>
           <el-table-column prop="content" label="评价内容" min-width="200" show-overflow-tooltip />

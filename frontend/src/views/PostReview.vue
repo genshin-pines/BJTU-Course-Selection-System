@@ -11,22 +11,20 @@
       </template>
 
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
-        <el-form-item label="综合评分" prop="overallScore">
-          <el-rate v-model="form.overallScore" :max="5" show-score />
-        </el-form-item>
-        <el-form-item label="难度评分" prop="difficultyScore">
-          <el-rate v-model="form.difficultyScore" :max="5" show-score
-            :texts="['很简单', '简单', '适中', '较难', '很难']" />
-        </el-form-item>
-        <el-form-item label="给分评分" prop="gradingScore">
+        <el-form-item label="给分情况" prop="gradingScore">
           <el-rate v-model="form.gradingScore" :max="5" show-score
             :texts="['很差', '较差', '一般', '较好', '很好']" />
         </el-form-item>
+        <el-form-item label="授课质量" prop="teachingScore">
+          <el-rate v-model="form.teachingScore" :max="5" show-score
+            :texts="['很差', '较差', '一般', '较好', '很好']" />
+        </el-form-item>
+        <el-form-item label="作业轻松度" prop="workloadScore">
+          <el-rate v-model="form.workloadScore" :max="5" show-score
+            :texts="['很繁重', '较繁重', '适中', '较轻松', '很轻松']" />
+        </el-form-item>
         <el-form-item label="评价内容" prop="content">
           <el-input v-model="form.content" type="textarea" :rows="6" placeholder="分享你的课程体验..." />
-        </el-form-item>
-        <el-form-item label="学习建议">
-          <el-input v-model="form.studyTips" type="textarea" :rows="3" placeholder="例如：重点复习第几章..." />
         </el-form-item>
         <el-form-item label="考核方式">
           <el-input v-model="form.examType" placeholder="例如：闭卷考试 + 平时作业" />
@@ -68,9 +66,9 @@ const availableTags = ref([])
 const form = reactive({
   courseId: Number(route.params.courseId),
   teacherId: null,
-  overallScore: 0,
-  difficultyScore: 0,
   gradingScore: 0,
+  teachingScore: 0,
+  workloadScore: 0,
   content: '',
   studyTips: '',
   examType: '',
@@ -78,9 +76,9 @@ const form = reactive({
 })
 
 const rules = {
-  overallScore: [{ required: true, message: '请评分', trigger: 'change', validator: (_, v, cb) => v > 0 ? cb() : cb(new Error('请评分')) }],
-  difficultyScore: [{ required: true, message: '请评分', trigger: 'change', validator: (_, v, cb) => v > 0 ? cb() : cb(new Error('请评分')) }],
   gradingScore: [{ required: true, message: '请评分', trigger: 'change', validator: (_, v, cb) => v > 0 ? cb() : cb(new Error('请评分')) }],
+  teachingScore: [{ required: true, message: '请评分', trigger: 'change', validator: (_, v, cb) => v > 0 ? cb() : cb(new Error('请评分')) }],
+  workloadScore: [{ required: true, message: '请评分', trigger: 'change', validator: (_, v, cb) => v > 0 ? cb() : cb(new Error('请评分')) }],
   content: [{ required: true, message: '请输入评价内容', trigger: 'blur' }]
 }
 

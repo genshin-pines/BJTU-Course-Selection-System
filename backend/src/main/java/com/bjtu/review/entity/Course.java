@@ -14,7 +14,8 @@ public class Course {
     private String department;
     private Long teacherId;
     private Double avgScore;
-    private Double difficultyScore;
     private Double gradingScore;
+    private Double avgTeachingScore;
+    private Double avgWorkloadScore;
     private Integer reviewCount;
 }

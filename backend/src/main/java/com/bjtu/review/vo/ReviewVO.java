@@ -13,8 +13,9 @@ public class ReviewVO {
     private Long teacherId;
     private String teacherName;
     private Integer overallScore;
-    private Integer difficultyScore;
     private Integer gradingScore;
+    private Integer teachingScore;
+    private Integer workloadScore;
     private String content;
     private String studyTips;
     private String examType;

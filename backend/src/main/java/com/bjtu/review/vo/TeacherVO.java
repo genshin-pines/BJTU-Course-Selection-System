@@ -9,6 +9,8 @@ public class TeacherVO {
     private String teacherName;
     private String department;
     private Double avgScore;
+    private Double avgTeachingScore;
+    private Double avgWorkloadScore;
     private Integer courseCount;
     private Integer reviewCount;
 }
