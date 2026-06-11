@@ -48,8 +48,10 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // 公开接口
+                .requestMatchers(HttpMethod.GET, "/api/auth/session").authenticated()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/course/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/review/course/*/liked").hasRole("STUDENT")
                 .requestMatchers(HttpMethod.GET, "/api/review/course/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/teacher/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tag/**").permitAll()

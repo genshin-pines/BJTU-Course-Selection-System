@@ -31,11 +31,12 @@ public class JwtUtils {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String generateToken(Long userId, String role, String username) {
+    public String generateToken(Long userId, String role, String username, String sessionId) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
         claims.put("role", role);
         claims.put("username", username);
+        claims.put("sessionId", sessionId);
         return Jwts.builder()
                 .claims(claims)
                 .issuedAt(new Date())
@@ -72,6 +73,12 @@ public class JwtUtils {
         Claims claims = parseToken(token);
         if (claims == null) return null;
         return claims.get("username", String.class);
+    }
+
+    public String getSessionId(String token) {
+        Claims claims = parseToken(token);
+        if (claims == null) return null;
+        return claims.get("sessionId", String.class);
     }
 
     public boolean validateToken(String token) {

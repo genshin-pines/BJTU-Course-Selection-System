@@ -26,6 +26,12 @@ public class ReviewController {
         return Result.ok(reviews);
     }
 
+    @GetMapping("/course/{courseId}/liked")
+    public Result<List<Long>> getLikedReviewIds(Authentication auth, @PathVariable Long courseId) {
+        Long studentId = (Long) auth.getPrincipal();
+        return Result.ok(reviewService.getLikedReviewIds(studentId, courseId));
+    }
+
     @PostMapping
     public Result<?> publishReview(Authentication auth, @Valid @RequestBody ReviewRequest request) {
         Long studentId = (Long) auth.getPrincipal();
@@ -49,8 +55,8 @@ public class ReviewController {
     }
 
     @PostMapping("/like/{id}")
-    public Result<?> likeReview(@PathVariable Long id) {
-        reviewService.likeReview(id);
-        return Result.ok();
+    public Result<?> likeReview(Authentication auth, @PathVariable Long id) {
+        Long studentId = (Long) auth.getPrincipal();
+        return Result.ok(reviewService.toggleLikeReview(studentId, id));
     }
 }

@@ -10,6 +10,8 @@ import com.bjtu.review.utils.JwtUtils;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class AdminServiceImpl extends ServiceImpl<AdminMapper, Admin> implements AdminService {
 
@@ -30,6 +32,10 @@ public class AdminServiceImpl extends ServiceImpl<AdminMapper, Admin> implements
         if (!passwordEncoder.matches(request.getPassword(), admin.getPassword())) {
             throw new RuntimeException("密码错误");
         }
-        return jwtUtils.generateToken(admin.getId(), "ADMIN", admin.getUsername());
+        String sessionId = UUID.randomUUID().toString();
+        admin.setCurrentSessionId(sessionId);
+        baseMapper.updateById(admin);
+
+        return jwtUtils.generateToken(admin.getId(), "ADMIN", admin.getUsername(), sessionId);
     }
 }

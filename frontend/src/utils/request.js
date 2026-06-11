@@ -6,22 +6,32 @@ const request = axios.create({
   timeout: 10000
 })
 
-// 请求拦截器 — 携带 Token
 request.interceptors.request.use(config => {
-  const token = localStorage.getItem('token')
+  const token = window.sessionStorage.getItem('token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
-// 响应拦截器 — 统一错误处理
+function isAdminRequest(config) {
+  const url = config?.url || ''
+  const role = window.sessionStorage.getItem('userRole')
+  return role === 'ADMIN' || url.startsWith('/admin') || url.startsWith('/auth/admin')
+}
+
+function clearSession() {
+  window.sessionStorage.removeItem('token')
+  window.sessionStorage.removeItem('userRole')
+  window.sessionStorage.removeItem('userInfo')
+}
+
 request.interceptors.response.use(
   response => {
     const data = response.data
     if (data.code !== 200) {
       ElMessage.error(data.message || '请求失败')
-      return Promise.reject(new Error(data.message))
+      return Promise.reject(new Error(data.message || '请求失败'))
     }
     return data
   },
@@ -29,12 +39,14 @@ request.interceptors.response.use(
     if (error.response) {
       const status = error.response.status
       if (status === 401) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('userRole')
-        window.location.href = '/login'
-        ElMessage.error('登录已过期，请重新登录')
+        const redirectTo = isAdminRequest(error.config) ? '/admin/login' : '/login'
+        clearSession()
+        if (!error.config?.skipAuthRedirect) {
+          ElMessage.error('登录已过期，请重新登录')
+          window.location.href = redirectTo
+        }
       } else if (status === 403) {
-        ElMessage.error('无权限访问')
+        ElMessage.error('无权限访问，请确认当前账号角色')
       } else {
         ElMessage.error(error.response.data?.message || '请求失败')
       }

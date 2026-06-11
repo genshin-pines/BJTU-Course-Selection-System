@@ -64,11 +64,11 @@ public interface CourseMapper extends BaseMapper<Course> {
                      @Param("minScore") Double minScore,
                      @Param("maxScore") Double maxScore);
 
-    @Update("UPDATE course SET avg_score = (SELECT COALESCE(AVG(overall_score), 0) FROM review WHERE course_id = #{courseId} AND status = 'APPROVED'), " +
-            "grading_score = (SELECT COALESCE(AVG(grading_score), 0) FROM review WHERE course_id = #{courseId} AND status = 'APPROVED'), " +
-            "avg_teaching_score = (SELECT COALESCE(AVG(teaching_score), 0) FROM review WHERE course_id = #{courseId} AND status = 'APPROVED'), " +
-            "avg_workload_score = (SELECT COALESCE(AVG(workload_score), 0) FROM review WHERE course_id = #{courseId} AND status = 'APPROVED'), " +
-            "review_count = (SELECT COUNT(*) FROM review WHERE course_id = #{courseId} AND status = 'APPROVED') " +
+    @Update("UPDATE course SET avg_score = (SELECT COALESCE(AVG(overall_score), 0) FROM review WHERE course_id = #{courseId} AND status IN ('PUBLISHED', 'APPROVED')), " +
+            "grading_score = (SELECT COALESCE(AVG(grading_score), 0) FROM review WHERE course_id = #{courseId} AND status IN ('PUBLISHED', 'APPROVED')), " +
+            "avg_teaching_score = (SELECT COALESCE(AVG(teaching_score), 0) FROM review WHERE course_id = #{courseId} AND status IN ('PUBLISHED', 'APPROVED')), " +
+            "avg_workload_score = (SELECT COALESCE(AVG(workload_score), 0) FROM review WHERE course_id = #{courseId} AND status IN ('PUBLISHED', 'APPROVED')), " +
+            "review_count = (SELECT COUNT(*) FROM review WHERE course_id = #{courseId} AND status IN ('PUBLISHED', 'APPROVED')) " +
             "WHERE id = #{courseId}")
     void updateScores(Long courseId);
 }

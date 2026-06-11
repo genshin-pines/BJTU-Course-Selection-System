@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS student
     name         VARCHAR(50)  NOT NULL COMMENT '姓名',
     anonymous_id VARCHAR(50)  NOT NULL COMMENT '匿名ID',
     password     VARCHAR(255) NOT NULL COMMENT '密码（BCrypt加密）',
+    current_session_id VARCHAR(64) COMMENT '当前有效登录会话ID',
     major        VARCHAR(100) COMMENT '专业',
     grade        VARCHAR(20) COMMENT '年级',
     create_time  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
@@ -70,7 +71,7 @@ CREATE TABLE IF NOT EXISTS review
     study_tips       TEXT COMMENT '学习建议',
     exam_type        VARCHAR(200) COMMENT '考核方式',
     like_count       INT          DEFAULT 0 COMMENT '点赞数',
-    status           VARCHAR(20)  DEFAULT 'PENDING' COMMENT '状态: PENDING/APPROVED/REJECTED',
+    status           VARCHAR(20)  DEFAULT 'PENDING_AUDIT' COMMENT '状态: PENDING_AUDIT/PENDING_MANUAL/PUBLISHED/HIDDEN/ARCHIVED',
     create_time      DATETIME              DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_course_id (course_id),
     INDEX idx_teacher_id (teacher_id),
@@ -98,6 +99,19 @@ CREATE TABLE IF NOT EXISTS review_tag
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT '评价标签关联表';
 
+-- 评价点赞记录表
+CREATE TABLE IF NOT EXISTS review_vote
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    review_id   BIGINT NOT NULL COMMENT '评价ID',
+    student_id  BIGINT NOT NULL COMMENT '学生ID',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_review_vote_student (review_id, student_id),
+    INDEX idx_review_vote_review_id (review_id),
+    INDEX idx_review_vote_student_id (student_id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT '评价点赞记录表';
+
 -- 举报表
 CREATE TABLE IF NOT EXISTS report
 (
@@ -112,12 +126,31 @@ CREATE TABLE IF NOT EXISTS report
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT '举报表';
 
+-- 审计日志表
+CREATE TABLE IF NOT EXISTS audit_log
+(
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+    admin_id     BIGINT      NOT NULL COMMENT '管理员ID',
+    review_id    BIGINT COMMENT '评价ID',
+    report_id    BIGINT COMMENT '举报ID',
+    operate_type VARCHAR(50) NOT NULL COMMENT '操作类型',
+    reason       TEXT COMMENT '操作原因',
+    create_time  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_admin_id (admin_id),
+    INDEX idx_review_id (review_id),
+    INDEX idx_report_id (report_id),
+    INDEX idx_operate_type (operate_type),
+    INDEX idx_create_time (create_time)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT '审计日志表';
+
 -- 管理员表
 CREATE TABLE IF NOT EXISTS admin
 (
     id       BIGINT PRIMARY KEY AUTO_INCREMENT,
     username VARCHAR(50)  NOT NULL UNIQUE COMMENT '用户名',
-    password VARCHAR(255) NOT NULL COMMENT '密码（BCrypt加密）'
+    password VARCHAR(255) NOT NULL COMMENT '密码（BCrypt加密）',
+    current_session_id VARCHAR(64) COMMENT '当前有效登录会话ID'
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT '管理员表';
 
@@ -125,8 +158,8 @@ CREATE TABLE IF NOT EXISTS admin
 -- 初始数据
 -- =============================================
 
--- 管理员账号
-INSERT INTO admin (username, password) VALUES ('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5Eh');
+-- 管理员账号（密码 123456）
+INSERT INTO admin (username, password) VALUES ('admin', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy');
 
 -- 预设标签
 INSERT INTO tag (tag_name) VALUES
@@ -135,8 +168,8 @@ INSERT INTO tag (tag_name) VALUES
 
 -- 示例学生（密码均为 123456，BCrypt加密）
 INSERT INTO student (student_no, name, anonymous_id, password, major, grade) VALUES
-    ('2022111111', '张三', '匿名用户A001', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5Eh', '计算机科学与技术', '2022'),
-    ('2022111112', '李四', '匿名用户B002', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5Eh', '软件工程', '2022');
+    ('2022111111', '张三', '匿名用户A001', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', '计算机科学与技术', '2022'),
+    ('2022111112', '李四', '匿名用户B002', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', '软件工程', '2022');
 
 -- 示例教师
 INSERT INTO teacher (teacher_name, department) VALUES

@@ -13,6 +13,7 @@ public class Student {
     private String name;
     private String anonymousId;
     private String password;
+    private String currentSessionId;
     private String major;
     private String grade;
     @TableField(fill = FieldFill.INSERT)

@@ -9,6 +9,6 @@ public interface ReportService {
     void reportReview(Long reporterId, ReportRequest request);
     List<ReportVO> getPendingReports();
     List<ReportVO> getAllReports();
-    void resolveReport(Long reportId);
-    void dismissReport(Long reportId);
+    void resolveReport(Long adminId, Long reportId, String reason);
+    void dismissReport(Long adminId, Long reportId, String reason);
 }

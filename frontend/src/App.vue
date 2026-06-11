@@ -6,9 +6,9 @@
           <router-link to="/" class="logo">BJTU 课程评价</router-link>
         </div>
         <div class="header-right">
-          <template v-if="authStore.token">
-            <span class="user-info" v-if="authStore.userRole === 'STUDENT'">
-              {{ authStore.userInfo?.anonymousId }}
+          <template v-if="authStore.isLoggedIn">
+            <span class="user-info" v-if="authStore.isStudent">
+              {{ authStore.userInfo?.anonymousId || authStore.userInfo?.studentNo }}
             </span>
             <span class="user-info" v-else>管理员</span>
             <el-button text @click="handleLogout">退出</el-button>
@@ -27,12 +27,17 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
 const authStore = useAuthStore()
 const router = useRouter()
+
+onMounted(() => {
+  authStore.verifySession()
+})
 
 function handleLogout() {
   authStore.logout()

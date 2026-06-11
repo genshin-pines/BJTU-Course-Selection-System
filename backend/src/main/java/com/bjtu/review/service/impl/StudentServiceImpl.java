@@ -10,6 +10,8 @@ import com.bjtu.review.vo.LoginVO;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class StudentServiceImpl extends ServiceImpl<StudentMapper, Student> implements StudentService {
 
@@ -44,7 +46,11 @@ public class StudentServiceImpl extends ServiceImpl<StudentMapper, Student> impl
         if (!matched) {
             throw new RuntimeException("密码错误");
         }
-        String token = jwtUtils.generateToken(student.getId(), "STUDENT", student.getStudentNo());
+        String sessionId = UUID.randomUUID().toString();
+        student.setCurrentSessionId(sessionId);
+        baseMapper.updateById(student);
+
+        String token = jwtUtils.generateToken(student.getId(), "STUDENT", student.getStudentNo(), sessionId);
         LoginVO vo = new LoginVO();
         vo.setToken(token);
         vo.setAnonymousId(student.getAnonymousId());

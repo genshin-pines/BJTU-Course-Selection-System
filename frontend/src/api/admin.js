@@ -4,14 +4,14 @@ export const adminApi = {
   getPendingReviews() {
     return request.get('/admin/reviews/pending')
   },
-  approveReview(id) {
-    return request.put(`/admin/reviews/${id}/approve`)
+  approveReview(id, reason) {
+    return request.put(`/admin/reviews/${id}/approve`, { reason })
   },
-  rejectReview(id) {
-    return request.put(`/admin/reviews/${id}/reject`)
+  rejectReview(id, reason) {
+    return request.put(`/admin/reviews/${id}/reject`, { reason })
   },
-  deleteReview(id) {
-    return request.delete(`/admin/reviews/${id}`)
+  deleteReview(id, reason) {
+    return request.delete(`/admin/reviews/${id}`, { data: { reason } })
   },
   getPendingReports() {
     return request.get('/admin/reports/pending')
@@ -19,11 +19,14 @@ export const adminApi = {
   getAllReports() {
     return request.get('/admin/reports')
   },
-  resolveReport(id) {
-    return request.put(`/admin/reports/${id}/resolve`)
+  resolveReport(id, reason) {
+    return request.put(`/admin/reports/${id}/resolve`, { reason })
   },
-  dismissReport(id) {
-    return request.put(`/admin/reports/${id}/dismiss`)
+  dismissReport(id, reason) {
+    return request.put(`/admin/reports/${id}/dismiss`, { reason })
+  },
+  getAuditLogs() {
+    return request.get('/admin/audit-logs')
   },
   createTag(tagName) {
     return request.post('/admin/tags', null, { params: { tagName } })

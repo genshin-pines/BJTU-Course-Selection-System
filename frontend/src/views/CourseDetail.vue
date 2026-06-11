@@ -1,6 +1,5 @@
 <template>
   <div class="detail-container" v-loading="loading">
-    <!-- 课程信息 -->
     <el-card class="course-header" v-if="course">
       <div class="header-main">
         <div class="header-info">
@@ -36,10 +35,9 @@
       </div>
     </el-card>
 
-    <!-- 评价列表 -->
     <div class="reviews-section">
       <h2>课程评价</h2>
-      <el-empty v-if="reviews.length === 0" description="暂无评价，快来写第一条吧!" />
+      <el-empty v-if="reviews.length === 0" description="暂无评价，快来写第一条吧！" />
 
       <el-card v-for="review in reviews" :key="review.id" class="review-card">
         <div class="review-header">
@@ -73,7 +71,7 @@
         </div>
 
         <div class="review-actions">
-          <el-button text @click="handleLike(review)">
+          <el-button text :type="review.liked ? 'primary' : ''" @click="handleLike(review)">
             <el-icon><CaretTop /></el-icon>
             {{ review.likeCount || 0 }}
           </el-button>
@@ -85,11 +83,15 @@
       </el-card>
     </div>
 
-    <!-- 举报弹窗 -->
     <el-dialog v-model="reportVisible" title="举报评价" width="480px">
       <el-form :model="reportForm">
         <el-form-item label="举报原因">
-          <el-input v-model="reportForm.reason" type="textarea" :rows="3" placeholder="请描述举报原因" />
+          <el-input
+            v-model="reportForm.reason"
+            type="textarea"
+            :rows="3"
+            placeholder="请描述举报原因"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -130,6 +132,7 @@ async function loadData() {
     ])
     course.value = courseRes.data
     reviews.value = reviewRes.data || []
+    await markLikedReviews()
   } catch (e) {
     console.error(e)
   } finally {
@@ -137,28 +140,51 @@ async function loadData() {
   }
 }
 
-function goPostReview() {
-  if (!authStore.token) {
-    ElMessage.warning('请先登录再写评价')
+async function markLikedReviews() {
+  const valid = await authStore.verifySession()
+  if (!valid || !authStore.isStudent || reviews.value.length === 0) {
+    return
+  }
+  const likedRes = await reviewApi.getLikedByCourse(route.params.id)
+  const likedIds = new Set(likedRes.data || [])
+  reviews.value = reviews.value.map((review) => ({
+    ...review,
+    liked: likedIds.has(review.id)
+  }))
+}
+
+async function ensureStudent() {
+  const valid = await authStore.verifySession(true)
+  if (!valid || !authStore.isLoggedIn) {
+    ElMessage.warning('请先登录学生账号')
     router.push('/login')
+    return false
+  }
+  if (!authStore.isStudent) {
+    ElMessage.warning('该操作需要学生账号，请切换到学生登录')
+    return false
+  }
+  return true
+}
+
+async function goPostReview() {
+  if (!await ensureStudent()) {
     return
   }
   router.push(`/post-review/${route.params.id}`)
 }
 
-function handleLike(review) {
-  if (!authStore.token) {
-    ElMessage.warning('请先登录')
+async function handleLike(review) {
+  if (!await ensureStudent()) {
     return
   }
-  reviewApi.like(review.id).then(() => {
-    review.likeCount = (review.likeCount || 0) + 1
-  })
+  const res = await reviewApi.like(review.id)
+  review.likeCount = res.data.likeCount
+  review.liked = res.data.liked
 }
 
-function showReportDialog(review) {
-  if (!authStore.token) {
-    ElMessage.warning('请先登录')
+async function showReportDialog(review) {
+  if (!await ensureStudent()) {
     return
   }
   currentReview.value = review
@@ -174,12 +200,12 @@ async function handleReport() {
   try {
     await reportApi.submit({
       reviewId: currentReview.value.id,
-      reason: reportForm.value.reason
+      reason: reportForm.value.reason.trim()
     })
     ElMessage.success('举报已提交')
     reportVisible.value = false
   } catch (e) {
-    // error handled globally
+    // Global interceptor handles request errors.
   }
 }
 

@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const routes = [
   {
@@ -27,7 +28,7 @@ const routes = [
     path: '/post-review/:courseId',
     name: 'PostReview',
     component: () => import('@/views/PostReview.vue'),
-    meta: { title: '发布评价', requiresAuth: true }
+    meta: { title: '发布评价', requiresStudent: true }
   },
   {
     path: '/admin/login',
@@ -48,19 +49,23 @@ const router = createRouter({
   routes
 })
 
-// 路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   document.title = to.meta.title ? `BJTU - ${to.meta.title}` : 'BJTU 课程评价系统'
 
-  const token = localStorage.getItem('token')
-  const userRole = localStorage.getItem('userRole')
+  const authStore = useAuthStore()
+  const needsAuth = to.meta.requiresStudent || to.meta.requiresAdmin
+  if (needsAuth) {
+    await authStore.verifySession(true)
+  } else {
+    authStore.syncFromStorage()
+  }
 
-  if (to.meta.requiresAuth && !token) {
+  if (to.meta.requiresStudent && !authStore.isStudent) {
     next('/login')
     return
   }
 
-  if (to.meta.requiresAdmin && userRole !== 'ADMIN') {
+  if (to.meta.requiresAdmin && !authStore.isAdmin) {
     next('/admin/login')
     return
   }

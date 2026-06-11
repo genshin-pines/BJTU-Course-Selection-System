@@ -24,7 +24,7 @@ java -jar target/review-system-1.0.0.jar --server.port=8889
 cd frontend
 npm install
 npm run dev
-```
+http://localhost:8081
 
 ## 数据库
 执行 `backend/src/main/resources/db/schema.sql` 建表并灌入初始数据。

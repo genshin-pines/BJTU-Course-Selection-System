@@ -4,6 +4,9 @@ export const reviewApi = {
   getByCourse(courseId) {
     return request.get(`/review/course/${courseId}`)
   },
+  getLikedByCourse(courseId) {
+    return request.get(`/review/course/${courseId}/liked`)
+  },
   publish(data) {
     return request.post('/review', data)
   },

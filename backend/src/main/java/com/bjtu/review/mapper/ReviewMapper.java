@@ -15,7 +15,7 @@ public interface ReviewMapper extends BaseMapper<Review> {
             "LEFT JOIN student s ON r.student_id = s.id " +
             "LEFT JOIN course c ON r.course_id = c.id " +
             "LEFT JOIN teacher t ON r.teacher_id = t.id " +
-            "WHERE r.course_id = #{courseId} AND r.status = 'APPROVED' " +
+            "WHERE r.course_id = #{courseId} AND r.status IN ('PUBLISHED', 'APPROVED') " +
             "ORDER BY r.like_count DESC, r.create_time DESC")
     @Results({
             @Result(property = "id", column = "id"),
@@ -29,6 +29,7 @@ public interface ReviewMapper extends BaseMapper<Review> {
             @Result(property = "studyTips", column = "study_tips"),
             @Result(property = "examType", column = "exam_type"),
             @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "status", column = "status"),
             @Result(property = "createTime", column = "create_time"),
     })
     List<ReviewVO> selectByCourseId(Long courseId);
@@ -38,7 +39,7 @@ public interface ReviewMapper extends BaseMapper<Review> {
             "LEFT JOIN student s ON r.student_id = s.id " +
             "LEFT JOIN course c ON r.course_id = c.id " +
             "LEFT JOIN teacher t ON r.teacher_id = t.id " +
-            "WHERE r.status = 'PENDING' " +
+            "WHERE r.status IN ('PENDING_AUDIT', 'PENDING_MANUAL', 'PENDING') " +
             "ORDER BY r.create_time ASC")
     @Results({
             @Result(property = "id", column = "id"),
@@ -52,10 +53,14 @@ public interface ReviewMapper extends BaseMapper<Review> {
             @Result(property = "studyTips", column = "study_tips"),
             @Result(property = "examType", column = "exam_type"),
             @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "status", column = "status"),
             @Result(property = "createTime", column = "create_time"),
     })
     List<ReviewVO> selectPendingReviews();
 
     @Update("UPDATE review SET like_count = like_count + 1 WHERE id = #{reviewId}")
     void incrementLike(Long reviewId);
+
+    @Update("UPDATE review SET like_count = GREATEST(like_count - 1, 0) WHERE id = #{reviewId}")
+    void decrementLike(Long reviewId);
 }
