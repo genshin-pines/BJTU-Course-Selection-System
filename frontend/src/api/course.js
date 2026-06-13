@@ -6,5 +6,11 @@ export const courseApi = {
   },
   getDetail(id) {
     return request.get(`/course/${id}`)
+  },
+  getInstanceDetail(instanceId) {
+    return request.get(`/course/instances/${instanceId}/detail`)
+  },
+  getInstances(id) {
+    return request.get(`/course/${id}/instances`)
   }
 }

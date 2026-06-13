@@ -10,13 +10,17 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("review_vote")
-public class ReviewVote {
+@TableName("review_exam_exp")
+public class ReviewExamExp {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long reviewId;
-    private Long voterRecordId;
-    private String voteType;
+    private String examType;
+    private String studyTips;
+    private String keyChapters;
+    private Boolean cheatSheetAllowed;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updateTime;
 }

@@ -8,8 +8,13 @@ import java.util.List;
 public class ReviewVO {
     private Long id;
     private String anonymousId;
+    private Long voterRecordId;
+    private String anonymousUserKey;
+    private Long courseInstanceId;
     private Long courseId;
     private String courseName;
+    private String semester;
+    private String className;
     private Long teacherId;
     private String teacherName;
     private Integer overallScore;
@@ -19,7 +24,10 @@ public class ReviewVO {
     private String content;
     private String studyTips;
     private String examType;
+    private String keyChapters;
+    private Boolean cheatSheetAllowed;
     private Integer likeCount;
+    private Integer downvoteCount;
     private String status;
     private LocalDateTime createTime;
     private List<TagVO> tags;

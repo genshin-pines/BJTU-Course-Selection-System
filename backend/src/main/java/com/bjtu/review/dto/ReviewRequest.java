@@ -1,18 +1,23 @@
 package com.bjtu.review.dto;
 
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+
 import java.util.List;
 
 @Data
 public class ReviewRequest {
-    @NotNull(message = "课程ID不能为空")
+    // Legacy course id. New instance-first flows may omit it.
     private Long courseId;
 
-    @NotNull(message = "教师ID不能为空")
+    private Long courseInstanceId;
+
+    // Legacy teacher id. New instance-first flows derive it from courseInstanceId.
     private Long teacherId;
 
-    // overallScore 由后端自动计算，前端无需传递
     private Integer overallScore;
 
     @NotNull(message = "给分评分不能为空")
@@ -35,5 +40,7 @@ public class ReviewRequest {
 
     private String studyTips;
     private String examType;
+    private String keyChapters;
+    private Boolean cheatSheetAllowed;
     private List<Long> tags;
 }

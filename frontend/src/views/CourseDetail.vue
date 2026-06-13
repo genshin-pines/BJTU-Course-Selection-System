@@ -31,12 +31,79 @@
         </div>
       </div>
       <div class="header-actions">
-        <el-button type="primary" @click="goPostReview">写评价</el-button>
+        <el-button type="primary" :disabled="!selectedCourseInstanceId" @click="goPostReview">写评价</el-button>
       </div>
     </el-card>
 
+    <el-card class="instances-card" v-if="courseInstances.length">
+      <template #header>
+        <div class="instances-header">
+          <div class="section-title">开课实例</div>
+          <el-radio-group v-model="selectedCourseInstanceId" size="small" @change="loadReviews">
+            <el-radio-button :label="null">全部评价</el-radio-button>
+            <el-radio-button
+              v-for="instance in courseInstances"
+              :key="instance.id"
+              :label="instance.id"
+            >
+              {{ instance.semester }} / {{ instance.teacherName || '未分配教师' }}
+            </el-radio-button>
+          </el-radio-group>
+        </div>
+      </template>
+      <el-table :data="courseInstances" size="small">
+        <el-table-column prop="semester" label="学期" min-width="120" />
+        <el-table-column prop="teacherName" label="授课教师" min-width="120" />
+        <el-table-column prop="className" label="班级" min-width="120">
+          <template #default="{ row }">
+            {{ row.className || '未设置' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="reviewCount" label="评价数" width="90" />
+        <el-table-column label="评分" width="90">
+          <template #default="{ row }">
+            {{ row.avgScore?.toFixed(1) || '-' }}
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
     <div class="reviews-section">
-      <h2>课程评价</h2>
+      <div class="reviews-toolbar">
+        <h2>课程评价</h2>
+        <div class="reviews-filters">
+          <el-select
+            v-model="selectedTagIds"
+            size="small"
+            placeholder="按标签筛选"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            clearable
+            style="width: 220px"
+            @change="loadReviews"
+          >
+            <el-option
+              v-for="tag in tags"
+              :key="tag.id"
+              :label="tag.tagName"
+              :value="tag.id"
+            />
+          </el-select>
+          <el-select
+            v-model="reviewSortBy"
+            size="small"
+            style="width: 180px"
+            @change="loadReviews"
+          >
+            <el-option label="质量优先" value="quality" />
+            <el-option label="最新优先" value="latest" />
+            <el-option label="高分优先" value="highScore" />
+            <el-option label="有用优先" value="useful" />
+            <el-option label="争议优先" value="controversial" />
+          </el-select>
+        </div>
+      </div>
       <el-empty v-if="reviews.length === 0" description="暂无评价，快来写第一条吧！" />
 
       <el-card v-for="review in reviews" :key="review.id" class="review-card">
@@ -70,10 +137,33 @@
           <strong>考核方式：</strong>{{ review.examType }}
         </div>
 
+        <div class="review-meta" v-if="review.keyChapters">
+          <strong>重点章节：</strong>{{ review.keyChapters }}
+        </div>
+        <div class="review-meta" v-if="review.cheatSheetAllowed !== null && review.cheatSheetAllowed !== undefined">
+          <strong>可带资料：</strong>{{ review.cheatSheetAllowed ? '可以' : '不可以' }}
+        </div>
+
         <div class="review-actions">
-          <el-button text :type="review.liked ? 'primary' : ''" @click="handleLike(review)">
+          <el-button
+            text
+            :type="review.liked ? 'primary' : ''"
+            :loading="votingReviewIds.has(review.id)"
+            :disabled="votingReviewIds.has(review.id)"
+            @click="handleLike(review)"
+          >
             <el-icon><CaretTop /></el-icon>
-            {{ review.likeCount || 0 }}
+            有用 {{ review.likeCount || 0 }}
+          </el-button>
+          <el-button
+            text
+            :type="review.downvoted ? 'warning' : ''"
+            :loading="votingReviewIds.has(review.id)"
+            :disabled="votingReviewIds.has(review.id)"
+            @click="handleDownvote(review)"
+          >
+            <el-icon><CaretBottom /></el-icon>
+            没用 {{ review.downvoteCount || 0 }}
           </el-button>
           <el-button text type="danger" @click="showReportDialog(review)">
             <el-icon><Warning /></el-icon>
@@ -109,14 +199,23 @@ import { ElMessage } from 'element-plus'
 import { courseApi } from '@/api/course'
 import { reviewApi } from '@/api/review'
 import { reportApi } from '@/api/report'
+import { tagApi } from '@/api/tag'
 import { useAuthStore } from '@/stores/auth'
+import { CaretBottom, CaretTop, User, Warning } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
 const course = ref(null)
+const courseInstances = ref([])
+const selectedCourseInstanceId = ref(null)
+const currentCourseId = ref(Number(route.params.id))
 const reviews = ref([])
+const reviewSortBy = ref('quality')
+const selectedTagIds = ref([])
+const tags = ref([])
+const votingReviewIds = ref(new Set())
 const loading = ref(false)
 
 const reportVisible = ref(false)
@@ -126,13 +225,36 @@ const reportForm = ref({ reason: '' })
 async function loadData() {
   loading.value = true
   try {
-    const [courseRes, reviewRes] = await Promise.all([
-      courseApi.getDetail(route.params.id),
-      reviewApi.getByCourse(route.params.id)
-    ])
+    const routeInstanceId = route.query.instanceId ? Number(route.query.instanceId) : null
+    const courseRes = routeInstanceId
+      ? await courseApi.getInstanceDetail(routeInstanceId)
+      : await courseApi.getDetail(route.params.id)
     course.value = courseRes.data
-    reviews.value = reviewRes.data || []
-    await markLikedReviews()
+    currentCourseId.value = course.value?.id || null
+    if (currentCourseId.value) {
+      const instanceRes = await courseApi.getInstances(currentCourseId.value).catch((error) => {
+        console.warn('Failed to load course instances:', error)
+        return { data: [] }
+      })
+      courseInstances.value = instanceRes.data || []
+    } else {
+      courseInstances.value = [{
+        id: course.value.courseInstanceId,
+        courseBaseId: course.value.courseBaseId,
+        legacyCourseId: null,
+        teacherId: course.value.teacherId,
+        teacherName: course.value.teacherName,
+        semester: course.value.semester,
+        className: course.value.className,
+        avgScore: course.value.avgScore,
+        gradingScore: course.value.gradingScore,
+        avgTeachingScore: course.value.avgTeachingScore,
+        avgWorkloadScore: course.value.avgWorkloadScore,
+        reviewCount: course.value.reviewCount
+      }].filter((instance) => instance.id)
+    }
+    selectedCourseInstanceId.value = routeInstanceId || course.value?.courseInstanceId || courseInstances.value[0]?.id || null
+    await loadReviews()
   } catch (e) {
     console.error(e)
   } finally {
@@ -140,16 +262,52 @@ async function loadData() {
   }
 }
 
-async function markLikedReviews() {
+async function loadReviews() {
+  if (!currentCourseId.value && !selectedCourseInstanceId.value) {
+    reviews.value = []
+    return
+  }
+  const reviewRes = currentCourseId.value
+    ? await reviewApi.getByCourse(
+        currentCourseId.value,
+        selectedCourseInstanceId.value,
+        reviewSortBy.value,
+        selectedTagIds.value
+      )
+    : await reviewApi.getByInstance(selectedCourseInstanceId.value, reviewSortBy.value, selectedTagIds.value)
+  reviews.value = reviewRes.data || []
+  await markVoteStates()
+}
+
+async function loadTags() {
+  try {
+    const res = await tagApi.getAll()
+    tags.value = res.data || []
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+async function markVoteStates() {
   const valid = await authStore.verifySession()
   if (!valid || !authStore.isStudent || reviews.value.length === 0) {
     return
   }
-  const likedRes = await reviewApi.getLikedByCourse(route.params.id)
+  const [likedRes, downvotedRes] = currentCourseId.value
+    ? await Promise.all([
+        reviewApi.getLikedByCourse(currentCourseId.value, selectedCourseInstanceId.value),
+        reviewApi.getDownvotedByCourse(currentCourseId.value, selectedCourseInstanceId.value)
+      ])
+    : await Promise.all([
+        reviewApi.getLikedByInstance(selectedCourseInstanceId.value),
+        reviewApi.getDownvotedByInstance(selectedCourseInstanceId.value)
+      ])
   const likedIds = new Set(likedRes.data || [])
+  const downvotedIds = new Set(downvotedRes.data || [])
   reviews.value = reviews.value.map((review) => ({
     ...review,
-    liked: likedIds.has(review.id)
+    liked: likedIds.has(review.id),
+    downvoted: downvotedIds.has(review.id)
   }))
 }
 
@@ -168,19 +326,78 @@ async function ensureStudent() {
 }
 
 async function goPostReview() {
+  if (!selectedCourseInstanceId.value) {
+    ElMessage.warning('请选择开课实例')
+    return
+  }
   if (!await ensureStudent()) {
     return
   }
-  router.push(`/post-review/${route.params.id}`)
+  if (currentCourseId.value) {
+    router.push({
+      path: `/post-review/${currentCourseId.value}`,
+      query: { instanceId: selectedCourseInstanceId.value }
+    })
+    return
+  }
+  router.push(`/post-review/instance/${selectedCourseInstanceId.value}`)
 }
 
 async function handleLike(review) {
   if (!await ensureStudent()) {
     return
   }
-  const res = await reviewApi.like(review.id)
-  review.likeCount = res.data.likeCount
-  review.liked = res.data.liked
+  if (votingReviewIds.value.has(review.id)) {
+    return
+  }
+  setReviewVoting(review.id, true)
+  try {
+    const res = await reviewApi.like(review.id)
+    applyVoteResult(review, res.data)
+  } catch (e) {
+    showVoteError(e)
+  } finally {
+    setReviewVoting(review.id, false)
+  }
+}
+
+async function handleDownvote(review) {
+  if (!await ensureStudent()) {
+    return
+  }
+  if (votingReviewIds.value.has(review.id)) {
+    return
+  }
+  setReviewVoting(review.id, true)
+  try {
+    const res = await reviewApi.downvote(review.id)
+    applyVoteResult(review, res.data)
+  } catch (e) {
+    showVoteError(e)
+  } finally {
+    setReviewVoting(review.id, false)
+  }
+}
+
+function setReviewVoting(reviewId, voting) {
+  const next = new Set(votingReviewIds.value)
+  if (voting) {
+    next.add(reviewId)
+  } else {
+    next.delete(reviewId)
+  }
+  votingReviewIds.value = next
+}
+
+function applyVoteResult(review, result) {
+  review.likeCount = result.likeCount
+  review.downvoteCount = result.downvoteCount
+  review.liked = result.liked
+  review.downvoted = result.downvoted
+}
+
+function showVoteError(error) {
+  ElMessage.warning(error.response?.data?.message || error.message || '投票失败，请稍后重试')
 }
 
 async function showReportDialog(review) {
@@ -214,7 +431,9 @@ function formatTime(time) {
   return new Date(time).toLocaleString('zh-CN')
 }
 
-onMounted(loadData)
+onMounted(async () => {
+  await Promise.all([loadTags(), loadData()])
+})
 </script>
 
 <style scoped>
@@ -225,6 +444,23 @@ onMounted(loadData)
 
 .course-header {
   margin-bottom: 24px;
+}
+
+.instances-card {
+  margin-bottom: 24px;
+}
+
+.instances-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.section-title {
+  font-weight: 700;
+  color: #333;
 }
 
 .header-main {
@@ -286,10 +522,26 @@ onMounted(loadData)
   justify-content: flex-end;
 }
 
-.reviews-section h2 {
-  font-size: 20px;
+.reviews-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 16px;
+}
+
+.reviews-toolbar h2 {
+  font-size: 20px;
+  margin-bottom: 0;
   color: #333;
+}
+
+.reviews-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .review-card {
@@ -348,5 +600,17 @@ onMounted(loadData)
   border-top: 1px solid #f0f0f0;
   display: flex;
   gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .reviews-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .reviews-filters {
+    justify-content: flex-start;
+    width: 100%;
+  }
 }
 </style>

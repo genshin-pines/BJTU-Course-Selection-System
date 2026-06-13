@@ -1,13 +1,18 @@
 package com.bjtu.review.vo;
 
 import lombok.Data;
+
 import java.time.LocalDateTime;
 
 @Data
-public class ReportVO {
+public class AuditLogVO {
     private Long id;
+    private Long adminId;
     private Long reviewId;
-    private String reviewContent;
+    private Long reportId;
+    private String operateType;
+    private String reason;
+    private LocalDateTime createTime;
     private Long courseInstanceId;
     private Long courseId;
     private String courseName;
@@ -16,9 +21,5 @@ public class ReportVO {
     private Long teacherId;
     private String teacherName;
     private String anonymousId;
-    private Long reporterRecordId;
-    private String reporterAnonymousId;
-    private String reason;
-    private String status;
-    private LocalDateTime createTime;
+    private String reviewContent;
 }

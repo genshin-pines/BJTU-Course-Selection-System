@@ -9,7 +9,9 @@ import java.time.LocalDateTime;
 public class Review {
     @TableId(type = IdType.AUTO)
     private Long id;
-    private Long studentId;
+    private Long voterRecordId;
+    private String anonymousUserKey;
+    private Long courseInstanceId;
     private Long courseId;
     private Long teacherId;
     private Integer overallScore;
@@ -20,6 +22,7 @@ public class Review {
     private String studyTips;
     private String examType;
     private Integer likeCount;
+    private Integer downvoteCount;
     private String status;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;

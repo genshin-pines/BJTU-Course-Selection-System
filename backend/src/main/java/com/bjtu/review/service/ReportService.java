@@ -6,7 +6,7 @@ import com.bjtu.review.vo.ReportVO;
 import java.util.List;
 
 public interface ReportService {
-    void reportReview(Long reporterId, ReportRequest request);
+    void reportReview(Long studentId, ReportRequest request);
     List<ReportVO> getPendingReports();
     List<ReportVO> getAllReports();
     void resolveReport(Long adminId, Long reportId, String reason);

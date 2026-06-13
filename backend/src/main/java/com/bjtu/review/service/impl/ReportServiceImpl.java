@@ -7,12 +7,14 @@ import com.bjtu.review.dto.ReportRequest;
 import com.bjtu.review.entity.AuditLog;
 import com.bjtu.review.entity.Report;
 import com.bjtu.review.entity.Review;
+import com.bjtu.review.entity.VoterRecord;
 import com.bjtu.review.mapper.AuditLogMapper;
-import com.bjtu.review.mapper.CourseMapper;
+import com.bjtu.review.mapper.CourseInstanceMapper;
 import com.bjtu.review.mapper.ReportMapper;
 import com.bjtu.review.mapper.ReviewMapper;
 import com.bjtu.review.mapper.ReviewTagMapper;
 import com.bjtu.review.mapper.TeacherMapper;
+import com.bjtu.review.service.AnonymityService;
 import com.bjtu.review.service.ReportService;
 import com.bjtu.review.vo.ReportVO;
 import org.springframework.stereotype.Service;
@@ -26,28 +28,34 @@ public class ReportServiceImpl implements ReportService {
     private final ReportMapper reportMapper;
     private final ReviewMapper reviewMapper;
     private final ReviewTagMapper reviewTagMapper;
-    private final CourseMapper courseMapper;
+    private final CourseInstanceMapper courseInstanceMapper;
     private final TeacherMapper teacherMapper;
     private final AuditLogMapper auditLogMapper;
+    private final AnonymityService anonymityService;
 
     public ReportServiceImpl(ReportMapper reportMapper, ReviewMapper reviewMapper,
-                             ReviewTagMapper reviewTagMapper, CourseMapper courseMapper,
-                             TeacherMapper teacherMapper, AuditLogMapper auditLogMapper) {
+                              ReviewTagMapper reviewTagMapper,
+                              CourseInstanceMapper courseInstanceMapper,
+                              TeacherMapper teacherMapper, AuditLogMapper auditLogMapper,
+                              AnonymityService anonymityService) {
         this.reportMapper = reportMapper;
         this.reviewMapper = reviewMapper;
         this.reviewTagMapper = reviewTagMapper;
-        this.courseMapper = courseMapper;
+        this.courseInstanceMapper = courseInstanceMapper;
         this.teacherMapper = teacherMapper;
         this.auditLogMapper = auditLogMapper;
+        this.anonymityService = anonymityService;
     }
 
     @Override
-    public void reportReview(Long reporterId, ReportRequest request) {
+    public void reportReview(Long studentId, ReportRequest request) {
         Review review = reviewMapper.selectById(request.getReviewId());
         if (review == null) {
             throw new RuntimeException("评价不存在");
         }
-        if (review.getStudentId().equals(reporterId)) {
+        VoterRecord reporterRecord = anonymityService.getOrCreateCourseReviewRecord(
+                studentId, review.getCourseId(), review.getTeacherId(), review.getCourseInstanceId());
+        if (isSelfReport(reporterRecord, review)) {
             throw new RuntimeException("不能举报自己的评价");
         }
         if (!ReviewStatus.PUBLISHED.name().equals(review.getStatus()) && !"APPROVED".equals(review.getStatus())) {
@@ -56,7 +64,7 @@ public class ReportServiceImpl implements ReportService {
 
         LambdaQueryWrapper<Report> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Report::getReviewId, request.getReviewId())
-               .eq(Report::getReporterId, reporterId)
+               .eq(Report::getReporterRecordId, reporterRecord.getId())
                .eq(Report::getStatus, ReportStatus.PENDING.name());
         if (reportMapper.selectCount(wrapper) > 0) {
             throw new RuntimeException("您已举报过该评价，请等待处理");
@@ -64,7 +72,7 @@ public class ReportServiceImpl implements ReportService {
 
         Report report = new Report();
         report.setReviewId(request.getReviewId());
-        report.setReporterId(reporterId);
+        report.setReporterRecordId(reporterRecord.getId());
         report.setReason(request.getReason());
         report.setStatus(ReportStatus.PENDING.name());
         reportMapper.insert(report);
@@ -94,7 +102,9 @@ public class ReportServiceImpl implements ReportService {
         if (review != null) {
             reviewTagMapper.deleteByReviewId(report.getReviewId());
             reviewMapper.deleteById(report.getReviewId());
-            courseMapper.updateScores(review.getCourseId());
+            if (review.getCourseInstanceId() != null && review.getCourseInstanceId() > 0) {
+                courseInstanceMapper.updateScores(review.getCourseInstanceId());
+            }
             teacherMapper.updateAvgScore(review.getTeacherId());
         }
         writeAuditLog(adminId, report.getReviewId(), reportId, "RESOLVE_REPORT", defaultReason(reason, "采纳举报"));
@@ -126,5 +136,9 @@ public class ReportServiceImpl implements ReportService {
             return fallback;
         }
         return reason.trim();
+    }
+
+    private boolean isSelfReport(VoterRecord reporterRecord, Review review) {
+        return review.getVoterRecordId() != null && review.getVoterRecordId().equals(reporterRecord.getId());
     }
 }

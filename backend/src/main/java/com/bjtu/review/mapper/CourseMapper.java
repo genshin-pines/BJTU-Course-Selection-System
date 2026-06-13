@@ -14,55 +14,171 @@ import java.util.List;
 public interface CourseMapper extends BaseMapper<Course> {
 
     @Select("<script>" +
-            "SELECT c.*, t.teacher_name " +
-            "FROM course c LEFT JOIN teacher t ON c.teacher_id = t.id " +
-            "WHERE 1=1 " +
+            "SELECT COALESCE(ci.legacy_course_id, cb.id) AS id, cb.id AS course_base_id, ci.id AS course_instance_id, " +
+            "cb.course_code, cb.course_name, cb.credit, cb.department, " +
+            "ci.teacher_id, t.teacher_name, ci.semester, ci.class_name, " +
+            "ci.avg_score, ci.grading_score, ci.avg_teaching_score, ci.avg_workload_score, ci.review_count " +
+            "FROM course_instance ci " +
+            "JOIN course_base cb ON cb.id = ci.course_base_id " +
+            "LEFT JOIN teacher t ON t.id = ci.teacher_id " +
+            "WHERE 1 = 1 " +
             "<if test='keyword != null and keyword != \"\"'>" +
-            "  AND (c.course_name LIKE CONCAT('%', #{keyword}, '%') " +
-            "   OR c.course_code LIKE CONCAT('%', #{keyword}, '%') " +
+            "  AND (cb.course_name LIKE CONCAT('%', #{keyword}, '%') " +
+            "   OR cb.course_code LIKE CONCAT('%', #{keyword}, '%') " +
             "   OR t.teacher_name LIKE CONCAT('%', #{keyword}, '%'))" +
             "</if>" +
             "<if test='department != null and department != \"\"'>" +
-            "  AND c.department = #{department}" +
+            "  AND cb.department = #{department}" +
+            "</if>" +
+            "<if test='teacherName != null and teacherName != \"\"'>" +
+            "  AND t.teacher_name LIKE CONCAT('%', #{teacherName}, '%')" +
+            "</if>" +
+            "<if test='semester != null and semester != \"\"'>" +
+            "  AND ci.semester = #{semester}" +
             "</if>" +
             "<if test='minScore != null'>" +
-            "  AND c.avg_score &gt;= #{minScore}" +
+            "  AND ci.avg_score &gt;= #{minScore}" +
             "</if>" +
             "<if test='maxScore != null'>" +
-            "  AND c.avg_score &lt;= #{maxScore}" +
+            "  AND ci.avg_score &lt;= #{maxScore}" +
             "</if>" +
-            "ORDER BY c.review_count DESC " +
+            "<if test='minGradingScore != null'>" +
+            "  AND ci.grading_score &gt;= #{minGradingScore}" +
+            "</if>" +
+            "<if test='maxGradingScore != null'>" +
+            "  AND ci.grading_score &lt;= #{maxGradingScore}" +
+            "</if>" +
+            "<if test='minTeachingScore != null'>" +
+            "  AND ci.avg_teaching_score &gt;= #{minTeachingScore}" +
+            "</if>" +
+            "<if test='maxTeachingScore != null'>" +
+            "  AND ci.avg_teaching_score &lt;= #{maxTeachingScore}" +
+            "</if>" +
+            "<if test='minWorkloadScore != null'>" +
+            "  AND ci.avg_workload_score &gt;= #{minWorkloadScore}" +
+            "</if>" +
+            "<if test='maxWorkloadScore != null'>" +
+            "  AND ci.avg_workload_score &lt;= #{maxWorkloadScore}" +
+            "</if>" +
+            "<if test='minReviewCount != null'>" +
+            "  AND ci.review_count &gt;= #{minReviewCount}" +
+            "</if>" +
+            "<if test='tagIds != null and tagIds.size() > 0'>" +
+            "  AND EXISTS (" +
+            "    SELECT 1 FROM review r_tag " +
+            "    JOIN review_tag rt_filter ON rt_filter.review_id = r_tag.id " +
+            "    WHERE r_tag.course_instance_id = ci.id " +
+            "      AND r_tag.status IN ('PUBLISHED', 'APPROVED') " +
+            "      AND rt_filter.tag_id IN " +
+            "      <foreach collection='tagIds' item='tagId' open='(' separator=',' close=')'>#{tagId}</foreach>" +
+            "  )" +
+            "</if>" +
+            "ORDER BY " +
+            "<choose>" +
+            "  <when test='sortBy == \"avgScore\"'>ci.avg_score</when>" +
+            "  <when test='sortBy == \"gradingScore\"'>ci.grading_score</when>" +
+            "  <when test='sortBy == \"teachingScore\"'>ci.avg_teaching_score</when>" +
+            "  <when test='sortBy == \"workloadScore\"'>ci.avg_workload_score</when>" +
+            "  <when test='sortBy == \"courseCode\"'>cb.course_code</when>" +
+            "  <otherwise>ci.review_count</otherwise>" +
+            "</choose> " +
+            "<choose>" +
+            "  <when test='sortOrder == \"asc\"'>ASC</when>" +
+            "  <otherwise>DESC</otherwise>" +
+            "</choose>, ci.semester DESC, cb.course_code ASC " +
             "LIMIT #{offset}, #{size}" +
             "</script>")
     List<CourseVO> searchCourses(@Param("keyword") String keyword,
                                   @Param("department") String department,
+                                  @Param("teacherName") String teacherName,
+                                  @Param("semester") String semester,
                                   @Param("minScore") Double minScore,
                                   @Param("maxScore") Double maxScore,
+                                  @Param("minGradingScore") Double minGradingScore,
+                                  @Param("maxGradingScore") Double maxGradingScore,
+                                  @Param("minTeachingScore") Double minTeachingScore,
+                                  @Param("maxTeachingScore") Double maxTeachingScore,
+                                  @Param("minWorkloadScore") Double minWorkloadScore,
+                                  @Param("maxWorkloadScore") Double maxWorkloadScore,
+                                  @Param("minReviewCount") Integer minReviewCount,
+                                  @Param("tagIds") List<Long> tagIds,
+                                  @Param("sortBy") String sortBy,
+                                  @Param("sortOrder") String sortOrder,
                                   @Param("offset") int offset,
                                   @Param("size") int size);
 
     @Select("<script>" +
-            "SELECT COUNT(*) FROM course c LEFT JOIN teacher t ON c.teacher_id = t.id " +
-            "WHERE 1=1 " +
+            "SELECT COUNT(*) " +
+            "FROM course_instance ci " +
+            "JOIN course_base cb ON cb.id = ci.course_base_id " +
+            "LEFT JOIN teacher t ON t.id = ci.teacher_id " +
+            "WHERE 1 = 1 " +
             "<if test='keyword != null and keyword != \"\"'>" +
-            "  AND (c.course_name LIKE CONCAT('%', #{keyword}, '%') " +
-            "   OR c.course_code LIKE CONCAT('%', #{keyword}, '%') " +
+            "  AND (cb.course_name LIKE CONCAT('%', #{keyword}, '%') " +
+            "   OR cb.course_code LIKE CONCAT('%', #{keyword}, '%') " +
             "   OR t.teacher_name LIKE CONCAT('%', #{keyword}, '%'))" +
             "</if>" +
             "<if test='department != null and department != \"\"'>" +
-            "  AND c.department = #{department}" +
+            "  AND cb.department = #{department}" +
+            "</if>" +
+            "<if test='teacherName != null and teacherName != \"\"'>" +
+            "  AND t.teacher_name LIKE CONCAT('%', #{teacherName}, '%')" +
+            "</if>" +
+            "<if test='semester != null and semester != \"\"'>" +
+            "  AND ci.semester = #{semester}" +
             "</if>" +
             "<if test='minScore != null'>" +
-            "  AND c.avg_score &gt;= #{minScore}" +
+            "  AND ci.avg_score &gt;= #{minScore}" +
             "</if>" +
             "<if test='maxScore != null'>" +
-            "  AND c.avg_score &lt;= #{maxScore}" +
+            "  AND ci.avg_score &lt;= #{maxScore}" +
+            "</if>" +
+            "<if test='minGradingScore != null'>" +
+            "  AND ci.grading_score &gt;= #{minGradingScore}" +
+            "</if>" +
+            "<if test='maxGradingScore != null'>" +
+            "  AND ci.grading_score &lt;= #{maxGradingScore}" +
+            "</if>" +
+            "<if test='minTeachingScore != null'>" +
+            "  AND ci.avg_teaching_score &gt;= #{minTeachingScore}" +
+            "</if>" +
+            "<if test='maxTeachingScore != null'>" +
+            "  AND ci.avg_teaching_score &lt;= #{maxTeachingScore}" +
+            "</if>" +
+            "<if test='minWorkloadScore != null'>" +
+            "  AND ci.avg_workload_score &gt;= #{minWorkloadScore}" +
+            "</if>" +
+            "<if test='maxWorkloadScore != null'>" +
+            "  AND ci.avg_workload_score &lt;= #{maxWorkloadScore}" +
+            "</if>" +
+            "<if test='minReviewCount != null'>" +
+            "  AND ci.review_count &gt;= #{minReviewCount}" +
+            "</if>" +
+            "<if test='tagIds != null and tagIds.size() > 0'>" +
+            "  AND EXISTS (" +
+            "    SELECT 1 FROM review r_tag " +
+            "    JOIN review_tag rt_filter ON rt_filter.review_id = r_tag.id " +
+            "    WHERE r_tag.course_instance_id = ci.id " +
+            "      AND r_tag.status IN ('PUBLISHED', 'APPROVED') " +
+            "      AND rt_filter.tag_id IN " +
+            "      <foreach collection='tagIds' item='tagId' open='(' separator=',' close=')'>#{tagId}</foreach>" +
+            "  )" +
             "</if>" +
             "</script>")
     long countSearch(@Param("keyword") String keyword,
                      @Param("department") String department,
+                     @Param("teacherName") String teacherName,
+                     @Param("semester") String semester,
                      @Param("minScore") Double minScore,
-                     @Param("maxScore") Double maxScore);
+                     @Param("maxScore") Double maxScore,
+                     @Param("minGradingScore") Double minGradingScore,
+                     @Param("maxGradingScore") Double maxGradingScore,
+                     @Param("minTeachingScore") Double minTeachingScore,
+                     @Param("maxTeachingScore") Double maxTeachingScore,
+                     @Param("minWorkloadScore") Double minWorkloadScore,
+                     @Param("maxWorkloadScore") Double maxWorkloadScore,
+                     @Param("minReviewCount") Integer minReviewCount,
+                     @Param("tagIds") List<Long> tagIds);
 
     @Update("UPDATE course SET avg_score = (SELECT COALESCE(AVG(overall_score), 0) FROM review WHERE course_id = #{courseId} AND status IN ('PUBLISHED', 'APPROVED')), " +
             "grading_score = (SELECT COALESCE(AVG(grading_score), 0) FROM review WHERE course_id = #{courseId} AND status IN ('PUBLISHED', 'APPROVED')), " +

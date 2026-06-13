@@ -10,7 +10,7 @@ public class Report {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long reviewId;
-    private Long reporterId;
+    private Long reporterRecordId;
     private String reason;
     private String status;
     @TableField(fill = FieldFill.INSERT)

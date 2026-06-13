@@ -19,8 +19,8 @@ public class ReportController {
 
     @PostMapping
     public Result<?> reportReview(Authentication auth, @Valid @RequestBody ReportRequest request) {
-        Long reporterId = (Long) auth.getPrincipal();
-        reportService.reportReview(reporterId, request);
+        Long studentId = (Long) auth.getPrincipal();
+        reportService.reportReview(studentId, request);
         return Result.ok();
     }
 }

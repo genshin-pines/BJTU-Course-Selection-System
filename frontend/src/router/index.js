@@ -25,6 +25,12 @@ const routes = [
     meta: { title: '课程详情' }
   },
   {
+    path: '/post-review/instance/:instanceId',
+    name: 'PostReviewByInstance',
+    component: () => import('@/views/PostReview.vue'),
+    meta: { title: '发布评价', requiresStudent: true }
+  },
+  {
     path: '/post-review/:courseId',
     name: 'PostReview',
     component: () => import('@/views/PostReview.vue'),

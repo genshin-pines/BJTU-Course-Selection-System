@@ -1,19 +1,18 @@
-package com.bjtu.review.vo;
+package com.bjtu.review.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
-import java.util.List;
 
 @Data
-public class CourseVO {
+@TableName("course_instance")
+public class CourseInstance {
+    @TableId(type = IdType.AUTO)
     private Long id;
     private Long courseBaseId;
-    private Long courseInstanceId;
-    private String courseCode;
-    private String courseName;
-    private Integer credit;
-    private String department;
+    private Long legacyCourseId;
     private Long teacherId;
-    private String teacherName;
     private String semester;
     private String className;
     private Double avgScore;
@@ -21,5 +20,4 @@ public class CourseVO {
     private Double avgTeachingScore;
     private Double avgWorkloadScore;
     private Integer reviewCount;
-    private List<String> topTags;
 }

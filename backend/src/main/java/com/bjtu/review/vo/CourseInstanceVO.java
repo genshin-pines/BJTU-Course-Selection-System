@@ -1,17 +1,12 @@
 package com.bjtu.review.vo;
 
 import lombok.Data;
-import java.util.List;
 
 @Data
-public class CourseVO {
+public class CourseInstanceVO {
     private Long id;
     private Long courseBaseId;
-    private Long courseInstanceId;
-    private String courseCode;
-    private String courseName;
-    private Integer credit;
-    private String department;
+    private Long legacyCourseId;
     private Long teacherId;
     private String teacherName;
     private String semester;
@@ -21,5 +16,4 @@ public class CourseVO {
     private Double avgTeachingScore;
     private Double avgWorkloadScore;
     private Integer reviewCount;
-    private List<String> topTags;
 }

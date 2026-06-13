@@ -10,13 +10,17 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("review_vote")
-public class ReviewVote {
+@TableName("voter_record")
+public class VoterRecord {
     @TableId(type = IdType.AUTO)
     private Long id;
-    private Long reviewId;
-    private Long voterRecordId;
-    private String voteType;
+    private Long studentId;
+    private String anonymousKey;
+    private String displayName;
+    private String scopeType;
+    private Long courseId;
+    private Long teacherId;
+    private Long courseInstanceId;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }

@@ -56,11 +56,77 @@ CREATE TABLE IF NOT EXISTS course
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT '课程表';
 
+CREATE TABLE IF NOT EXISTS course_base
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    course_code VARCHAR(50)  NOT NULL COMMENT 'course code',
+    course_name VARCHAR(200) NOT NULL COMMENT 'course name',
+    credit      INT DEFAULT 0 COMMENT 'credit',
+    department  VARCHAR(100) COMMENT 'department',
+    UNIQUE KEY uk_course_base_code (course_code),
+    INDEX idx_course_base_name (course_name),
+    INDEX idx_course_base_department (department)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT 'course base';
+
+CREATE TABLE IF NOT EXISTS course_instance
+(
+    id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+    course_base_id      BIGINT NOT NULL COMMENT 'course base id',
+    legacy_course_id    BIGINT COMMENT 'legacy course id',
+    teacher_id          BIGINT NOT NULL COMMENT 'teacher id',
+    semester            VARCHAR(50) DEFAULT 'UNKNOWN' COMMENT 'semester',
+    class_name          VARCHAR(100) COMMENT 'class name',
+    avg_score           DOUBLE DEFAULT 0 COMMENT 'average overall score',
+    grading_score       DOUBLE DEFAULT 0 COMMENT 'average grading score',
+    avg_teaching_score  DOUBLE DEFAULT 0 COMMENT 'average teaching score',
+    avg_workload_score  DOUBLE DEFAULT 0 COMMENT 'average workload score',
+    review_count        INT    DEFAULT 0 COMMENT 'published review count',
+    UNIQUE KEY uk_course_instance_legacy (legacy_course_id),
+    INDEX idx_course_instance_base (course_base_id),
+    INDEX idx_course_instance_teacher (teacher_id),
+    INDEX idx_course_instance_semester (semester)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT 'course instance';
+
+CREATE TABLE IF NOT EXISTS course_teacher_relation
+(
+    id             BIGINT PRIMARY KEY AUTO_INCREMENT,
+    course_base_id BIGINT NOT NULL COMMENT 'course base id',
+    teacher_id     BIGINT NOT NULL COMMENT 'teacher id',
+    semester       VARCHAR(50) DEFAULT 'UNKNOWN' COMMENT 'semester',
+    UNIQUE KEY uk_course_teacher_semester (course_base_id, teacher_id, semester),
+    INDEX idx_course_teacher_base (course_base_id),
+    INDEX idx_course_teacher_teacher (teacher_id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT 'course teacher relation';
+
+CREATE TABLE IF NOT EXISTS voter_record
+(
+    id                 BIGINT PRIMARY KEY AUTO_INCREMENT,
+    student_id          BIGINT NOT NULL COMMENT 'private identity mapping, do not expose to review queries',
+    anonymous_key       VARCHAR(64) NOT NULL COMMENT 'irreversible anonymous key',
+    display_name        VARCHAR(80) NOT NULL COMMENT 'anonymous display name',
+    scope_type          VARCHAR(40) NOT NULL COMMENT 'anonymous scope',
+    course_id           BIGINT NOT NULL COMMENT 'legacy course id',
+    teacher_id          BIGINT NOT NULL COMMENT 'teacher id',
+    course_instance_id  BIGINT NOT NULL DEFAULT 0 COMMENT 'course instance id, 0 means legacy course scope',
+    create_time         DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'create time',
+    UNIQUE KEY uk_voter_scope (student_id, scope_type, course_id, teacher_id, course_instance_id),
+    UNIQUE KEY uk_voter_anonymous_key (anonymous_key),
+    INDEX idx_voter_course_teacher (course_id, teacher_id),
+    INDEX idx_voter_instance (course_instance_id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT 'anonymous voter record';
+
 -- 评价表
 CREATE TABLE IF NOT EXISTS review
 (
     id               BIGINT PRIMARY KEY AUTO_INCREMENT,
-    student_id       BIGINT       NOT NULL COMMENT '学生ID',
+    student_id       BIGINT COMMENT 'legacy student id',
+    voter_record_id  BIGINT COMMENT 'anonymous voter record id',
+    anonymous_user_key VARCHAR(64) COMMENT 'anonymous user key snapshot',
+    course_instance_id BIGINT COMMENT 'course instance id',
     course_id        BIGINT       NOT NULL COMMENT '课程ID',
     teacher_id       BIGINT       NOT NULL COMMENT '教师ID',
     overall_score    INT          NOT NULL COMMENT '综合评分 1-5（自动计算：三项平均分四舍五入）',
@@ -71,11 +137,14 @@ CREATE TABLE IF NOT EXISTS review
     study_tips       TEXT COMMENT '学习建议',
     exam_type        VARCHAR(200) COMMENT '考核方式',
     like_count       INT          DEFAULT 0 COMMENT '点赞数',
+    downvote_count   INT          NOT NULL DEFAULT 0 COMMENT '没用数',
     status           VARCHAR(20)  DEFAULT 'PENDING_AUDIT' COMMENT '状态: PENDING_AUDIT/PENDING_MANUAL/PUBLISHED/HIDDEN/ARCHIVED',
     create_time      DATETIME              DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_course_id (course_id),
     INDEX idx_teacher_id (teacher_id),
     INDEX idx_student_id (student_id),
+    INDEX idx_review_voter_record (voter_record_id),
+    INDEX idx_review_course_instance (course_instance_id),
     INDEX idx_status (status)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT '评价表';
@@ -99,16 +168,36 @@ CREATE TABLE IF NOT EXISTS review_tag
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT '评价标签关联表';
 
+-- 评价考试经验表
+CREATE TABLE IF NOT EXISTS review_exam_exp
+(
+    id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+    review_id           BIGINT NOT NULL COMMENT '评价ID',
+    exam_type           VARCHAR(200) COMMENT '考核方式',
+    study_tips          TEXT COMMENT '学习/复习建议',
+    key_chapters        TEXT COMMENT '重点章节',
+    cheat_sheet_allowed TINYINT(1) COMMENT '是否允许带资料',
+    create_time         DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time         DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_review_exam_exp_review (review_id),
+    INDEX idx_review_exam_exp_review_id (review_id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT '评价考试经验表';
+
 -- 评价点赞记录表
 CREATE TABLE IF NOT EXISTS review_vote
 (
     id          BIGINT PRIMARY KEY AUTO_INCREMENT,
     review_id   BIGINT NOT NULL COMMENT '评价ID',
-    student_id  BIGINT NOT NULL COMMENT '学生ID',
+    student_id  BIGINT COMMENT 'legacy student id',
+    voter_record_id BIGINT COMMENT 'anonymous voter record id',
+    vote_type   VARCHAR(20) NOT NULL DEFAULT 'UPVOTE' COMMENT 'vote type',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     UNIQUE KEY uk_review_vote_student (review_id, student_id),
+    UNIQUE KEY uk_review_vote_record (review_id, voter_record_id),
     INDEX idx_review_vote_review_id (review_id),
-    INDEX idx_review_vote_student_id (student_id)
+    INDEX idx_review_vote_student_id (student_id),
+    INDEX idx_review_vote_voter_record (voter_record_id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT '评价点赞记录表';
 
@@ -117,12 +206,14 @@ CREATE TABLE IF NOT EXISTS report
 (
     id          BIGINT PRIMARY KEY AUTO_INCREMENT,
     review_id   BIGINT       NOT NULL COMMENT '被举报评价ID',
-    reporter_id BIGINT       NOT NULL COMMENT '举报人ID',
+    reporter_id BIGINT COMMENT 'legacy reporter id',
+    reporter_record_id BIGINT COMMENT 'anonymous reporter record id',
     reason      TEXT         NOT NULL COMMENT '举报原因',
     status      VARCHAR(20)  DEFAULT 'PENDING' COMMENT '状态: PENDING/RESOLVED/DISMISSED',
     create_time DATETIME              DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_review_id (review_id),
-    INDEX idx_status (status)
+    INDEX idx_status (status),
+    INDEX idx_report_reporter_record (reporter_record_id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT '举报表';
 

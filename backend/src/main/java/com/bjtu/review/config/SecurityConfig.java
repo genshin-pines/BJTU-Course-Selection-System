@@ -52,7 +52,11 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/course/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/review/course/*/liked").hasRole("STUDENT")
+                .requestMatchers(HttpMethod.GET, "/api/review/course/*/downvoted").hasRole("STUDENT")
                 .requestMatchers(HttpMethod.GET, "/api/review/course/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/review/instance/*/liked").hasRole("STUDENT")
+                .requestMatchers(HttpMethod.GET, "/api/review/instance/*/downvoted").hasRole("STUDENT")
+                .requestMatchers(HttpMethod.GET, "/api/review/instance/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/teacher/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tag/**").permitAll()
                 // 学生接口
@@ -60,6 +64,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/review/**").hasRole("STUDENT")
                 .requestMatchers(HttpMethod.DELETE, "/api/review/**").hasRole("STUDENT")
                 .requestMatchers(HttpMethod.POST, "/api/review/like/**").hasRole("STUDENT")
+                .requestMatchers(HttpMethod.POST, "/api/review/downvote/**").hasRole("STUDENT")
                 .requestMatchers(HttpMethod.POST, "/api/report").hasRole("STUDENT")
                 // 管理接口
                 .requestMatchers("/api/auth/admin/**").permitAll()

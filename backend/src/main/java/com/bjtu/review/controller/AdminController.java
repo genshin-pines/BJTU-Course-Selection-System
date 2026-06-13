@@ -1,14 +1,13 @@
 package com.bjtu.review.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.bjtu.review.common.Result;
 import com.bjtu.review.dto.AdminOperationRequest;
-import com.bjtu.review.entity.AuditLog;
 import com.bjtu.review.entity.Tag;
 import com.bjtu.review.mapper.AuditLogMapper;
 import com.bjtu.review.service.ReportService;
 import com.bjtu.review.service.ReviewService;
 import com.bjtu.review.service.TagService;
+import com.bjtu.review.vo.AuditLogVO;
 import com.bjtu.review.vo.ReportVO;
 import com.bjtu.review.vo.ReviewVO;
 import org.springframework.security.core.Authentication;
@@ -87,11 +86,8 @@ public class AdminController {
     }
 
     @GetMapping("/audit-logs")
-    public Result<List<AuditLog>> getAuditLogs() {
-        LambdaQueryWrapper<AuditLog> wrapper = new LambdaQueryWrapper<>();
-        wrapper.orderByDesc(AuditLog::getCreateTime);
-        wrapper.last("LIMIT 100");
-        return Result.ok(auditLogMapper.selectList(wrapper));
+    public Result<List<AuditLogVO>> getAuditLogs() {
+        return Result.ok(auditLogMapper.selectRecentLogs());
     }
 
     // 标签管理

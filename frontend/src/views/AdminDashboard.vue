@@ -6,6 +6,11 @@
           <el-table-column prop="id" label="ID" width="70" />
           <el-table-column prop="courseName" label="课程" width="180" />
           <el-table-column prop="teacherName" label="教师" width="120" />
+          <el-table-column label="开课实例" width="190">
+            <template #default="{ row }">
+              {{ formatInstance(row) }}
+            </template>
+          </el-table-column>
           <el-table-column label="评分" width="170">
             <template #default="{ row }">
               给分: {{ row.gradingScore }} | 授课: {{ row.teachingScore }} | 作业: {{ row.workloadScore }}
@@ -26,6 +31,15 @@
       <el-tab-pane label="举报管理" name="reports">
         <el-table :data="reports" v-loading="reportLoading" border>
           <el-table-column prop="id" label="ID" width="70" />
+          <el-table-column prop="courseName" label="课程" width="180" />
+          <el-table-column prop="teacherName" label="教师" width="120" />
+          <el-table-column label="开课实例" width="190">
+            <template #default="{ row }">
+              {{ formatInstance(row) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="anonymousId" label="评价用户" width="140" />
+          <el-table-column prop="reporterAnonymousId" label="举报用户" width="140" />
           <el-table-column prop="reviewContent" label="被举报内容" min-width="220" show-overflow-tooltip />
           <el-table-column prop="reason" label="举报原因" width="220" show-overflow-tooltip />
           <el-table-column prop="status" label="状态" width="110">
@@ -81,6 +95,15 @@
           </el-table-column>
           <el-table-column prop="reviewId" label="评价 ID" width="100" />
           <el-table-column prop="reportId" label="举报 ID" width="100" />
+          <el-table-column prop="courseName" label="课程" width="180" />
+          <el-table-column prop="teacherName" label="教师" width="120" />
+          <el-table-column label="开课实例" width="190">
+            <template #default="{ row }">
+              {{ formatInstance(row) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="anonymousId" label="评价用户" width="140" />
+          <el-table-column prop="reviewContent" label="评价摘要" min-width="180" show-overflow-tooltip />
           <el-table-column prop="reason" label="原因" min-width="220" show-overflow-tooltip />
           <el-table-column label="操作时间" width="190">
             <template #default="{ row }">
@@ -284,11 +307,20 @@ function operateTypeText(type) {
   const map = {
     APPROVE_REVIEW: '审核通过',
     REJECT_REVIEW: '审核拒绝',
+    HIDE_REVIEW: '审核拒绝',
     DELETE_REVIEW: '删除评价',
     RESOLVE_REPORT: '采纳举报',
     DISMISS_REPORT: '驳回举报'
   }
   return map[type] || type || '-'
+}
+
+function formatInstance(row) {
+  const parts = []
+  if (row.courseInstanceId) parts.push(`#${row.courseInstanceId}`)
+  if (row.semester) parts.push(row.semester)
+  if (row.className) parts.push(row.className)
+  return parts.length ? parts.join(' / ') : '-'
 }
 
 function formatTime(time) {

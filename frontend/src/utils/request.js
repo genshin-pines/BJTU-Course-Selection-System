@@ -30,12 +30,15 @@ request.interceptors.response.use(
   response => {
     const data = response.data
     if (data.code !== 200) {
-      ElMessage.error(data.message || '请求失败')
+      if (!response.config?.silentError) {
+        ElMessage.error(data.message || '请求失败')
+      }
       return Promise.reject(new Error(data.message || '请求失败'))
     }
     return data
   },
   error => {
+    const silentError = error.config?.silentError
     if (error.response) {
       const status = error.response.status
       if (status === 401) {
@@ -46,11 +49,13 @@ request.interceptors.response.use(
           window.location.href = redirectTo
         }
       } else if (status === 403) {
-        ElMessage.error('无权限访问，请确认当前账号角色')
-      } else {
+        if (!silentError) {
+          ElMessage.error('无权限访问，请确认当前账号角色')
+        }
+      } else if (!silentError) {
         ElMessage.error(error.response.data?.message || '请求失败')
       }
-    } else {
+    } else if (!silentError) {
       ElMessage.error('网络错误，请检查连接')
     }
     return Promise.reject(error)
