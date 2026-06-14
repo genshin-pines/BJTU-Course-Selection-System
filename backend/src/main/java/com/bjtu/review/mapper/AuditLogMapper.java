@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.bjtu.review.entity.AuditLog;
 import com.bjtu.review.vo.AuditLogVO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
@@ -11,7 +12,8 @@ import java.util.List;
 @Mapper
 public interface AuditLogMapper extends BaseMapper<AuditLog> {
 
-    @Select("SELECT al.*, rv.content AS review_content, rv.course_instance_id, rv.course_id, rv.teacher_id, " +
+    @Select("<script>" +
+            "SELECT al.*, rv.content AS review_content, rv.course_instance_id, rv.course_id, rv.teacher_id, " +
             "COALESCE(c.course_name, cb.course_name) AS course_name, " +
             "ci.semester, ci.class_name, t.teacher_name, " +
             "COALESCE(vr.display_name, '匿名用户') AS anonymous_id " +
@@ -22,7 +24,22 @@ public interface AuditLogMapper extends BaseMapper<AuditLog> {
             "LEFT JOIN course_instance ci ON rv.course_instance_id = ci.id " +
             "LEFT JOIN course_base cb ON ci.course_base_id = cb.id " +
             "LEFT JOIN teacher t ON rv.teacher_id = t.id " +
+            "WHERE 1 = 1 " +
+            "<if test='role == \"AUDITOR\"'>" +
+            "  AND al.operate_type IN ('APPROVE_REVIEW', 'REJECT_REVIEW', 'HIDE_REVIEW', 'DELETE_REVIEW', 'RESOLVE_REPORT', 'DISMISS_REPORT') " +
+            "</if>" +
+            "<if test='role == \"DEPT_OP\"'>" +
+            "  <choose>" +
+            "    <when test='department != null and department != \"\"'>" +
+            "      AND (COALESCE(cb.department, c.department, t.department) = #{department} OR al.admin_id = #{adminId}) " +
+            "    </when>" +
+            "    <otherwise> AND al.admin_id = #{adminId} </otherwise>" +
+            "  </choose>" +
+            "</if>" +
             "ORDER BY al.create_time DESC " +
-            "LIMIT 100")
-    List<AuditLogVO> selectRecentLogs();
+            "LIMIT 100" +
+            "</script>")
+    List<AuditLogVO> selectRecentLogs(@Param("role") String role,
+                                       @Param("department") String department,
+                                       @Param("adminId") Long adminId);
 }

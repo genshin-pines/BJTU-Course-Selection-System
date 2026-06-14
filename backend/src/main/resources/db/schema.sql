@@ -242,6 +242,7 @@ CREATE TABLE IF NOT EXISTS admin
     username VARCHAR(50)  NOT NULL UNIQUE COMMENT '用户名',
     password VARCHAR(255) NOT NULL COMMENT '密码（BCrypt加密）',
     role     VARCHAR(30)  NOT NULL DEFAULT 'SUPER_ADMIN' COMMENT '管理员角色：SUPER_ADMIN/DEPT_OP/AUDITOR',
+    department VARCHAR(100) COMMENT '管理员所属院系',
     current_session_id VARCHAR(64) COMMENT '当前有效登录会话ID'
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT '管理员表';
@@ -251,10 +252,10 @@ CREATE TABLE IF NOT EXISTS admin
 -- =============================================
 
 -- 管理员账号（密码 123456）
-INSERT INTO admin (username, password, role) VALUES
-    ('admin', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', 'SUPER_ADMIN'),
-    ('dept_op', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', 'DEPT_OP'),
-    ('auditor', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', 'AUDITOR');
+INSERT INTO admin (username, password, role, department) VALUES
+    ('admin', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', 'SUPER_ADMIN', NULL),
+    ('dept_op', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', 'DEPT_OP', CONVERT(0xE8AEA1E7AE97E69CBAE4B88EE4BFA1E681AFE68A80E69CAFE5ADA6E999A2 USING utf8mb4)),
+    ('auditor', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', 'AUDITOR', NULL);
 
 -- 预设标签
 INSERT INTO tag (tag_name) VALUES

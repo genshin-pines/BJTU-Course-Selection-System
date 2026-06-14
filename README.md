@@ -41,4 +41,6 @@ http://localhost:8081
 | 角色 | 账号 | 密码 |
 |------|------|------|
 | 学生 | 2022111111 | 123456 |
-| 管理员 | admin | 123456 |
+| SUPER_ADMIN | admin | 123456 |
+| DEPT_OP | dept_op | 123456 |
+| AUDITOR | auditor | 123456 |

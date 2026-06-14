@@ -217,7 +217,8 @@ function Test-DatabaseSchema {
         @{ Table = "report"; Column = "reporter_record_id" },
         @{ Table = "review_exam_exp"; Column = "key_chapters" },
         @{ Table = "review_exam_exp"; Column = "cheat_sheet_allowed" },
-        @{ Table = "admin"; Column = "role" }
+        @{ Table = "admin"; Column = "role" },
+        @{ Table = "admin"; Column = "department" }
     )
 
     $missing = New-Object System.Collections.Generic.List[string]
