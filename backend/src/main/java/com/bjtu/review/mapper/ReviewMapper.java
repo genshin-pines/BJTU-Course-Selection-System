@@ -37,7 +37,20 @@ public interface ReviewMapper extends BaseMapper<Review> {
             "  <when test='sortBy == \"highScore\"'>r.overall_score DESC, r.create_time DESC</when>" +
             "  <when test='sortBy == \"useful\"'>r.like_count DESC, (r.like_count - r.downvote_count) DESC, r.create_time DESC</when>" +
             "  <when test='sortBy == \"controversial\"'>(r.like_count + r.downvote_count) DESC, r.downvote_count DESC, r.create_time DESC</when>" +
-            "  <otherwise>(r.like_count - r.downvote_count) DESC, r.like_count DESC, r.create_time DESC</otherwise>" +
+            "  <otherwise>(" +
+            "    COALESCE(r.like_count, 0) * 2 " +
+            "    - COALESCE(r.downvote_count, 0) * 1.5 " +
+            "    + LEAST(COALESCE(CHAR_LENGTH(NULLIF(TRIM(r.content), '')), 0) / 80, 2) " +
+            "    + CASE WHEN COALESCE(NULLIF(TRIM(ree.study_tips), ''), NULLIF(TRIM(r.study_tips), '')) IS NULL THEN 0 ELSE 0.6 END " +
+            "    + CASE WHEN COALESCE(NULLIF(TRIM(ree.exam_type), ''), NULLIF(TRIM(r.exam_type), '')) IS NULL THEN 0 ELSE 0.4 END " +
+            "    + CASE WHEN NULLIF(TRIM(ree.key_chapters), '') IS NULL THEN 0 ELSE 0.5 END " +
+            "    + LEAST((SELECT COUNT(1) FROM review_tag rtq WHERE rtq.review_id = r.id) * 0.2, 1) " +
+            "    + CASE " +
+            "        WHEN r.create_time >= DATE_SUB(NOW(), INTERVAL 180 DAY) THEN 0.8 " +
+            "        WHEN r.create_time >= DATE_SUB(NOW(), INTERVAL 365 DAY) THEN 0.4 " +
+            "        ELSE 0 " +
+            "      END " +
+            "  ) DESC, (COALESCE(r.like_count, 0) - COALESCE(r.downvote_count, 0)) DESC, r.like_count DESC, r.create_time DESC</otherwise>" +
             "</choose>";
 
     @Select("<script>" +

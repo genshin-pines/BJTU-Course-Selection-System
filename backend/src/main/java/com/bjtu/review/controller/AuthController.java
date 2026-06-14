@@ -48,6 +48,7 @@ public class AuthController {
             Admin admin = adminMapper.selectById(userId);
             vo.setUsername(admin.getUsername());
             vo.setName(admin.getUsername());
+            vo.setAdminRole(admin.getRole() == null || admin.getRole().isBlank() ? "SUPER_ADMIN" : admin.getRole());
         }
         return Result.ok(vo);
     }

@@ -1,4 +1,12 @@
 # BJTU Course Review System
+
+## Admin test accounts
+
+| Role | Username | Password |
+|------|----------|----------|
+| SUPER_ADMIN | admin | 123456 |
+| DEPT_OP | dept_op | 123456 |
+| AUDITOR | auditor | 123456 |
 北京交通大学课程评价系统
 
 ## 技术栈

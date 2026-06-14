@@ -16,20 +16,27 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(STORAGE.getItem('token') || '')
   const userInfo = ref(readUserInfo())
   const userRole = ref(STORAGE.getItem('userRole') || '')
+  const adminRole = ref(STORAGE.getItem('adminRole') || '')
   const sessionChecked = ref(false)
 
   const isLoggedIn = computed(() => !!token.value)
   const isStudent = computed(() => !!token.value && userRole.value === 'STUDENT')
   const isAdmin = computed(() => !!token.value && userRole.value === 'ADMIN')
 
-  function persist(nextToken, nextRole, nextUserInfo) {
+  function persist(nextToken, nextRole, nextUserInfo, nextAdminRole = '') {
     token.value = nextToken || ''
     userRole.value = nextRole || ''
     userInfo.value = nextUserInfo || null
+    adminRole.value = nextAdminRole || ''
 
     if (token.value) {
       STORAGE.setItem('token', token.value)
       STORAGE.setItem('userRole', userRole.value)
+      if (adminRole.value) {
+        STORAGE.setItem('adminRole', adminRole.value)
+      } else {
+        STORAGE.removeItem('adminRole')
+      }
       if (userInfo.value) {
         STORAGE.setItem('userInfo', JSON.stringify(userInfo.value))
       } else {
@@ -38,6 +45,7 @@ export const useAuthStore = defineStore('auth', () => {
     } else {
       STORAGE.removeItem('token')
       STORAGE.removeItem('userRole')
+      STORAGE.removeItem('adminRole')
       STORAGE.removeItem('userInfo')
     }
   }
@@ -45,6 +53,7 @@ export const useAuthStore = defineStore('auth', () => {
   function syncFromStorage() {
     token.value = STORAGE.getItem('token') || ''
     userRole.value = STORAGE.getItem('userRole') || ''
+    adminRole.value = STORAGE.getItem('adminRole') || ''
     userInfo.value = readUserInfo()
   }
 
@@ -62,7 +71,7 @@ export const useAuthStore = defineStore('auth', () => {
     const res = await request.post('/auth/admin/login', { username, password })
     persist(res.data.token, 'ADMIN', {
       username
-    })
+    }, res.data.adminRole || 'SUPER_ADMIN')
     sessionChecked.value = true
   }
 
@@ -88,7 +97,7 @@ export const useAuthStore = defineStore('auth', () => {
         : {
             username: session.username
           }
-      persist(token.value, session.role, nextUserInfo)
+      persist(token.value, session.role, nextUserInfo, session.adminRole || '')
       sessionChecked.value = true
       return true
     } catch {
@@ -107,6 +116,7 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     userInfo,
     userRole,
+    adminRole,
     sessionChecked,
     isLoggedIn,
     isStudent,

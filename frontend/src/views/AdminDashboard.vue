@@ -1,7 +1,11 @@
 <template>
   <div class="admin-container">
+    <div class="admin-role-bar">
+      当前角色：{{ adminRoleText }}
+    </div>
+
     <el-tabs v-model="activeTab" type="border-card">
-      <el-tab-pane label="评价审核" name="reviews">
+      <el-tab-pane v-if="canGovernContent" label="评价审核" name="reviews">
         <el-table :data="pendingReviews" v-loading="reviewLoading" border>
           <el-table-column prop="id" label="ID" width="70" />
           <el-table-column prop="courseName" label="课程" width="180" />
@@ -28,7 +32,7 @@
         <el-empty v-if="!reviewLoading && pendingReviews.length === 0" description="暂无待审核评价" />
       </el-tab-pane>
 
-      <el-tab-pane label="举报管理" name="reports">
+      <el-tab-pane v-if="canGovernContent" label="举报管理" name="reports">
         <el-table :data="reports" v-loading="reportLoading" border>
           <el-table-column prop="id" label="ID" width="70" />
           <el-table-column prop="courseName" label="课程" width="180" />
@@ -52,12 +56,8 @@
           <el-table-column label="操作" width="250" fixed="right">
             <template #default="{ row }">
               <template v-if="row.status === 'PENDING'">
-                <el-button type="primary" size="small" @click="resolveReport(row.id)">
-                  采纳
-                </el-button>
-                <el-button type="warning" size="small" @click="dismissReport(row.id)">
-                  驳回
-                </el-button>
+                <el-button type="primary" size="small" @click="resolveReport(row.id)">采纳</el-button>
+                <el-button type="warning" size="small" @click="dismissReport(row.id)">驳回</el-button>
               </template>
               <span v-else class="muted">已处理</span>
             </template>
@@ -66,7 +66,7 @@
         <el-empty v-if="!reportLoading && reports.length === 0" description="暂无举报" />
       </el-tab-pane>
 
-      <el-tab-pane label="标签管理" name="tags">
+      <el-tab-pane v-if="canMaintainData" label="标签管理" name="tags">
         <div class="tag-header">
           <el-input v-model="newTagName" placeholder="输入新标签名" style="width: 240px" />
           <el-button type="primary" @click="handleCreateTag">添加标签</el-button>
@@ -84,7 +84,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="审计日志" name="auditLogs">
+      <el-tab-pane v-if="canViewAuditLogs" label="审计日志" name="auditLogs">
         <el-table :data="auditLogs" v-loading="auditLogLoading" border>
           <el-table-column prop="id" label="ID" width="70" />
           <el-table-column prop="adminId" label="管理员 ID" width="110" />
@@ -118,7 +118,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from '@/api/admin'
 import { tagApi } from '@/api/tag'
@@ -139,6 +139,19 @@ const newTagName = ref('')
 const auditLogs = ref([])
 const auditLogLoading = ref(false)
 
+const adminRole = computed(() => authStore.adminRole || 'SUPER_ADMIN')
+const canGovernContent = computed(() => ['SUPER_ADMIN', 'AUDITOR'].includes(adminRole.value))
+const canMaintainData = computed(() => ['SUPER_ADMIN', 'DEPT_OP'].includes(adminRole.value))
+const canViewAuditLogs = computed(() => ['SUPER_ADMIN', 'DEPT_OP', 'AUDITOR'].includes(adminRole.value))
+const adminRoleText = computed(() => {
+  const map = {
+    SUPER_ADMIN: '超级管理员',
+    DEPT_OP: '院系维护员',
+    AUDITOR: '内容审核员'
+  }
+  return map[adminRole.value] || adminRole.value
+})
+
 function ensureAdmin() {
   authStore.syncFromStorage()
   if (!authStore.isAdmin) {
@@ -146,6 +159,25 @@ function ensureAdmin() {
     return false
   }
   return true
+}
+
+function firstAccessibleTab() {
+  if (canGovernContent.value) return 'reviews'
+  if (canMaintainData.value) return 'tags'
+  if (canViewAuditLogs.value) return 'auditLogs'
+  return ''
+}
+
+function ensureAccessibleTab() {
+  const allowed = {
+    reviews: canGovernContent.value,
+    reports: canGovernContent.value,
+    tags: canMaintainData.value,
+    auditLogs: canViewAuditLogs.value
+  }
+  if (!allowed[activeTab.value]) {
+    activeTab.value = firstAccessibleTab()
+  }
 }
 
 async function askReason(title, placeholder) {
@@ -160,7 +192,7 @@ async function askReason(title, placeholder) {
 }
 
 async function loadPendingReviews() {
-  if (!ensureAdmin()) return
+  if (!ensureAdmin() || !canGovernContent.value) return
   reviewLoading.value = true
   try {
     const res = await adminApi.getPendingReviews()
@@ -173,7 +205,7 @@ async function loadPendingReviews() {
 }
 
 async function approveReview(id) {
-  if (!ensureAdmin()) return
+  if (!ensureAdmin() || !canGovernContent.value) return
   try {
     const reason = await askReason('审核通过', '请填写通过该评价的原因')
     await adminApi.approveReview(id, reason)
@@ -185,7 +217,7 @@ async function approveReview(id) {
 }
 
 async function rejectReview(id) {
-  if (!ensureAdmin()) return
+  if (!ensureAdmin() || !canGovernContent.value) return
   try {
     const reason = await askReason('审核拒绝', '请填写拒绝该评价的原因')
     await adminApi.rejectReview(id, reason)
@@ -197,7 +229,7 @@ async function rejectReview(id) {
 }
 
 async function loadReports() {
-  if (!ensureAdmin()) return
+  if (!ensureAdmin() || !canGovernContent.value) return
   reportLoading.value = true
   try {
     const res = await adminApi.getAllReports()
@@ -210,7 +242,7 @@ async function loadReports() {
 }
 
 async function resolveReport(id) {
-  if (!ensureAdmin()) return
+  if (!ensureAdmin() || !canGovernContent.value) return
   try {
     const reason = await askReason('采纳举报', '请填写采纳原因，采纳后将隐藏/删除对应评价')
     await adminApi.resolveReport(id, reason)
@@ -222,7 +254,7 @@ async function resolveReport(id) {
 }
 
 async function dismissReport(id) {
-  if (!ensureAdmin()) return
+  if (!ensureAdmin() || !canGovernContent.value) return
   try {
     const reason = await askReason('驳回举报', '请填写驳回该举报的原因')
     await adminApi.dismissReport(id, reason)
@@ -234,7 +266,7 @@ async function dismissReport(id) {
 }
 
 async function loadTags() {
-  if (!ensureAdmin()) return
+  if (!ensureAdmin() || !canMaintainData.value) return
   try {
     const res = await tagApi.getAll()
     tags.value = res.data || []
@@ -244,7 +276,7 @@ async function loadTags() {
 }
 
 async function handleCreateTag() {
-  if (!ensureAdmin()) return
+  if (!ensureAdmin() || !canMaintainData.value) return
   if (!newTagName.value.trim()) {
     ElMessage.warning('请输入标签名')
     return
@@ -260,7 +292,7 @@ async function handleCreateTag() {
 }
 
 async function handleDeleteTag(id) {
-  if (!ensureAdmin()) return
+  if (!ensureAdmin() || !canMaintainData.value) return
   try {
     await adminApi.deleteTag(id)
     ElMessage.success('标签已删除')
@@ -271,7 +303,7 @@ async function handleDeleteTag(id) {
 }
 
 async function loadAuditLogs() {
-  if (!ensureAdmin()) return
+  if (!ensureAdmin() || !canViewAuditLogs.value) return
   auditLogLoading.value = true
   try {
     const res = await adminApi.getAuditLogs()
@@ -288,6 +320,13 @@ function loadAuditLogsIfActive() {
     return Promise.resolve()
   }
   return loadAuditLogs()
+}
+
+function loadActiveTab() {
+  if (activeTab.value === 'reviews') loadPendingReviews()
+  if (activeTab.value === 'reports') loadReports()
+  if (activeTab.value === 'tags') loadTags()
+  if (activeTab.value === 'auditLogs') loadAuditLogs()
 }
 
 function reportStatusType(status) {
@@ -328,15 +367,15 @@ function formatTime(time) {
   return new Date(time).toLocaleString('zh-CN')
 }
 
-watch(activeTab, (tab) => {
-  if (tab === 'reviews') loadPendingReviews()
-  if (tab === 'reports') loadReports()
-  if (tab === 'tags') loadTags()
-  if (tab === 'auditLogs') loadAuditLogs()
+watch(activeTab, () => {
+  ensureAccessibleTab()
+  loadActiveTab()
 })
 
 onMounted(() => {
-  loadPendingReviews()
+  authStore.syncFromStorage()
+  ensureAccessibleTab()
+  loadActiveTab()
 })
 </script>
 
@@ -344,6 +383,13 @@ onMounted(() => {
 .admin-container {
   max-width: 1100px;
   margin: 0 auto;
+}
+
+.admin-role-bar {
+  margin-bottom: 12px;
+  color: #666;
+  font-size: 14px;
+  text-align: right;
 }
 
 .tag-header {
