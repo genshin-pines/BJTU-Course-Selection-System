@@ -28,6 +28,9 @@ function clearSession() {
 
 request.interceptors.response.use(
   response => {
+    if (response.config?.responseType === 'blob') {
+      return response.data
+    }
     const data = response.data
     if (data.code !== 200) {
       if (!response.config?.silentError) {

@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -36,10 +37,34 @@ public interface AuditLogMapper extends BaseMapper<AuditLog> {
             "    <otherwise> AND al.admin_id = #{adminId} </otherwise>" +
             "  </choose>" +
             "</if>" +
+            "<if test='operateType != null and operateType != \"\"'>" +
+            "  AND al.operate_type = #{operateType} " +
+            "</if>" +
+            "<if test='operatorId != null'>" +
+            "  AND al.admin_id = #{operatorId} " +
+            "</if>" +
+            "<if test='reviewId != null'>" +
+            "  AND al.review_id = #{reviewId} " +
+            "</if>" +
+            "<if test='courseName != null and courseName != \"\"'>" +
+            "  AND COALESCE(c.course_name, cb.course_name) LIKE CONCAT('%', #{courseName}, '%') " +
+            "</if>" +
+            "<if test='startTime != null'>" +
+            "  AND al.create_time &gt;= #{startTime} " +
+            "</if>" +
+            "<if test='endTime != null'>" +
+            "  AND al.create_time &lt;= #{endTime} " +
+            "</if>" +
             "ORDER BY al.create_time DESC " +
             "LIMIT 100" +
             "</script>")
     List<AuditLogVO> selectRecentLogs(@Param("role") String role,
                                        @Param("department") String department,
-                                       @Param("adminId") Long adminId);
+                                       @Param("adminId") Long adminId,
+                                       @Param("operateType") String operateType,
+                                       @Param("operatorId") Long operatorId,
+                                       @Param("reviewId") Long reviewId,
+                                       @Param("courseName") String courseName,
+                                       @Param("startTime") LocalDateTime startTime,
+                                       @Param("endTime") LocalDateTime endTime);
 }

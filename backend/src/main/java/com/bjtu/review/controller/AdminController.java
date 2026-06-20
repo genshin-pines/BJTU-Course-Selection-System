@@ -1,6 +1,7 @@
 package com.bjtu.review.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.bjtu.review.common.Result;
 import com.bjtu.review.dto.AdminCreateRequest;
 import com.bjtu.review.dto.AdminCourseInstanceRequest;
@@ -11,6 +12,7 @@ import com.bjtu.review.dto.AdminTeacherRequest;
 import com.bjtu.review.dto.AdminUpdateRoleRequest;
 import com.bjtu.review.entity.Admin;
 import com.bjtu.review.entity.AuditLog;
+import com.bjtu.review.entity.Course;
 import com.bjtu.review.entity.CourseBase;
 import com.bjtu.review.entity.CourseInstance;
 import com.bjtu.review.entity.Review;
@@ -20,15 +22,25 @@ import com.bjtu.review.mapper.AdminMapper;
 import com.bjtu.review.mapper.AuditLogMapper;
 import com.bjtu.review.mapper.CourseBaseMapper;
 import com.bjtu.review.mapper.CourseInstanceMapper;
+import com.bjtu.review.mapper.CourseMapper;
 import com.bjtu.review.mapper.ReviewMapper;
 import com.bjtu.review.mapper.TeacherMapper;
 import com.bjtu.review.service.ReportService;
 import com.bjtu.review.service.ReviewService;
 import com.bjtu.review.service.TagService;
+import com.bjtu.review.service.PageResult;
+import cn.hutool.core.text.csv.CsvData;
+import cn.hutool.core.text.csv.CsvReader;
+import cn.hutool.core.text.csv.CsvRow;
+import cn.hutool.core.text.csv.CsvUtil;
 import com.bjtu.review.vo.AdminAccountVO;
 import com.bjtu.review.vo.AuditLogVO;
+import com.bjtu.review.vo.ImportResultVO;
 import com.bjtu.review.vo.ReportVO;
 import com.bjtu.review.vo.ReviewVO;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -41,8 +53,16 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @RestController
@@ -64,12 +84,14 @@ public class AdminController {
     private final TeacherMapper teacherMapper;
     private final CourseInstanceMapper courseInstanceMapper;
     private final ReviewMapper reviewMapper;
+    private final CourseMapper courseMapper;
 
     public AdminController(ReviewService reviewService, ReportService reportService,
                            TagService tagService, AuditLogMapper auditLogMapper,
                            AdminMapper adminMapper, PasswordEncoder passwordEncoder,
                            CourseBaseMapper courseBaseMapper, TeacherMapper teacherMapper,
-                           CourseInstanceMapper courseInstanceMapper, ReviewMapper reviewMapper) {
+                           CourseInstanceMapper courseInstanceMapper, ReviewMapper reviewMapper,
+                           CourseMapper courseMapper) {
         this.reviewService = reviewService;
         this.reportService = reportService;
         this.tagService = tagService;
@@ -80,6 +102,7 @@ public class AdminController {
         this.teacherMapper = teacherMapper;
         this.courseInstanceMapper = courseInstanceMapper;
         this.reviewMapper = reviewMapper;
+        this.courseMapper = courseMapper;
     }
 
     @GetMapping("/reviews/pending")
@@ -141,12 +164,28 @@ public class AdminController {
     }
 
     @GetMapping("/audit-logs")
-    public Result<List<AuditLogVO>> getAuditLogs(Authentication auth) {
+    public Result<List<AuditLogVO>> getAuditLogs(Authentication auth,
+                                                 @RequestParam(required = false) String operateType,
+                                                 @RequestParam(required = false) Long operatorId,
+                                                 @RequestParam(required = false) Long reviewId,
+                                                 @RequestParam(required = false) String courseName,
+                                                 @RequestParam(required = false)
+                                                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+                                                 LocalDateTime startTime,
+                                                 @RequestParam(required = false)
+                                                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+                                                 LocalDateTime endTime) {
         Admin admin = currentAdmin(auth);
         return Result.ok(auditLogMapper.selectRecentLogs(
                 normalizeRole(admin.getRole()),
                 textOrNull(admin.getDepartment()),
-                admin.getId()));
+                admin.getId(),
+                textOrNull(operateType),
+                operatorId,
+                reviewId,
+                textOrNull(courseName),
+                startTime,
+                endTime));
     }
 
     @PostMapping("/tags")
@@ -166,9 +205,22 @@ public class AdminController {
     }
 
     @GetMapping("/courses")
-    public Result<List<CourseBase>> listCourses(Authentication auth) {
+    public Result<PageResult<CourseBase>> listCourses(Authentication auth,
+                                                      @RequestParam(required = false) String courseCode,
+                                                      @RequestParam(required = false) String courseName,
+                                                      @RequestParam(defaultValue = "1") Integer page,
+                                                      @RequestParam(defaultValue = "10") Integer pageSize,
+                                                      @RequestParam(required = false) String department) {
         requireDataMaintenance(auth);
-        return Result.ok(courseBaseMapper.selectList(null));
+        LambdaQueryWrapper<CourseBase> wrapper = new LambdaQueryWrapper<>();
+        if (courseCode != null && !courseCode.isBlank())
+            wrapper.like(CourseBase::getCourseCode, courseCode.trim());
+        if (courseName != null && !courseName.isBlank())
+            wrapper.like(CourseBase::getCourseName, courseName.trim());
+        if (department != null && !department.isBlank())
+            wrapper.like(CourseBase::getDepartment, department.trim());
+        wrapper.orderByAsc(CourseBase::getCourseCode).orderByAsc(CourseBase::getId);
+        return Result.ok(pageQuery(courseBaseMapper, wrapper, page, pageSize));
     }
 
     @PostMapping("/courses")
@@ -210,9 +262,19 @@ public class AdminController {
     }
 
     @GetMapping("/teachers")
-    public Result<List<Teacher>> listTeachers(Authentication auth) {
+    public Result<PageResult<Teacher>> listTeachers(Authentication auth,
+                                                    @RequestParam(required = false) String teacherName,
+                                                    @RequestParam(required = false) String department,
+                                                    @RequestParam(defaultValue = "1") Integer page,
+                                                    @RequestParam(defaultValue = "10") Integer pageSize) {
         requireDataMaintenance(auth);
-        return Result.ok(teacherMapper.selectList(null));
+        LambdaQueryWrapper<Teacher> wrapper = new LambdaQueryWrapper<>();
+        if (teacherName != null && !teacherName.isBlank())
+            wrapper.like(Teacher::getTeacherName, teacherName.trim());
+        if (department != null && !department.isBlank())
+            wrapper.like(Teacher::getDepartment, department.trim());
+        wrapper.orderByAsc(Teacher::getTeacherName).orderByAsc(Teacher::getId);
+        return Result.ok(pageQuery(teacherMapper, wrapper, page, pageSize));
     }
 
     @PostMapping("/teachers")
@@ -257,15 +319,44 @@ public class AdminController {
     }
 
     @GetMapping("/course-instances")
-    public Result<List<CourseInstance>> listCourseInstances(Authentication auth,
-                                                           @RequestParam(required = false) Long courseBaseId) {
+    public Result<PageResult<CourseInstance>> listCourseInstances(Authentication auth,
+                                                                 @RequestParam(required = false) Long courseBaseId,
+                                                                 @RequestParam(required = false) String courseName,
+                                                                 @RequestParam(required = false) String teacherName,
+                                                                 @RequestParam(required = false) String semester,
+                                                                 @RequestParam(defaultValue = "1") Integer page,
+                                                                 @RequestParam(defaultValue = "10") Integer pageSize) {
         requireDataMaintenance(auth);
         LambdaQueryWrapper<CourseInstance> wrapper = new LambdaQueryWrapper<>();
+
         if (courseBaseId != null) {
             wrapper.eq(CourseInstance::getCourseBaseId, courseBaseId);
         }
+
+        if (courseName != null && !courseName.isBlank()) {
+            List<Long> courseBaseIds = courseBaseMapper.selectList(
+                    new LambdaQueryWrapper<CourseBase>()
+                            .like(CourseBase::getCourseName, courseName.trim()))
+                    .stream().map(CourseBase::getId).toList();
+            if (courseBaseIds.isEmpty()) return Result.ok(emptyPage(page, pageSize));
+            wrapper.in(CourseInstance::getCourseBaseId, courseBaseIds);
+        }
+
+        if (teacherName != null && !teacherName.isBlank()) {
+            List<Long> teacherIds = teacherMapper.selectList(
+                    new LambdaQueryWrapper<Teacher>()
+                            .like(Teacher::getTeacherName, teacherName.trim()))
+                    .stream().map(Teacher::getId).toList();
+            if (teacherIds.isEmpty()) return Result.ok(emptyPage(page, pageSize));
+            wrapper.in(CourseInstance::getTeacherId, teacherIds);
+        }
+
+        if (semester != null && !semester.isBlank()) {
+            wrapper.like(CourseInstance::getSemester, semester.trim());
+        }
+
         wrapper.orderByDesc(CourseInstance::getSemester).orderByAsc(CourseInstance::getId);
-        return Result.ok(courseInstanceMapper.selectList(wrapper));
+        return Result.ok(pageQuery(courseInstanceMapper, wrapper, page, pageSize));
     }
 
     @PostMapping("/course-instances")
@@ -309,6 +400,45 @@ public class AdminController {
         courseInstanceMapper.deleteById(id);
         writeAuditLog(adminId(auth), "DELETE_COURSE_INSTANCE", "删除开课实例ID：" + id);
         return Result.ok();
+    }
+
+    @PostMapping("/courses/import")
+    public Result<ImportResultVO> importCourses(Authentication auth, @RequestParam("file") MultipartFile file) {
+        requireDataMaintenance(auth);
+        if (file == null || file.isEmpty()) {
+            return Result.fail("请选择要导入的 CSV 文件");
+        }
+        String filename = file.getOriginalFilename();
+        if (filename == null || !filename.toLowerCase().endsWith(".csv")) {
+            return Result.fail("仅支持 CSV 文件导入");
+        }
+        ImportResultVO result;
+        try {
+            result = processImportFile(file);
+        } catch (IOException e) {
+            return Result.fail("文件读取失败：" + e.getMessage());
+        } catch (RuntimeException e) {
+            return Result.fail("导入失败：" + e.getMessage());
+        }
+        writeAuditLog(adminId(auth), "IMPORT_COURSES",
+                "导入课程数据：总行数" + result.getTotalRows()
+                        + "，成功" + result.getSuccessCount()
+                        + "，跳过" + result.getSkipCount()
+                        + "，失败" + result.getFailCount());
+        return Result.ok(result);
+    }
+
+    @GetMapping("/courses/import/template")
+    public void downloadImportTemplate(Authentication auth, HttpServletResponse response) throws IOException {
+        requireDataMaintenance(auth);
+        response.setContentType("text/csv; charset=UTF-8");
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
+                "attachment; filename=\"course_import_template.csv\"");
+        response.setCharacterEncoding("UTF-8");
+        PrintWriter writer = response.getWriter();
+        writer.write('\uFEFF'); // UTF-8 BOM for Excel compatibility
+        writer.println("courseCode,courseName,credit,department,teacherName,teacherDepartment,semester,className");
+        writer.flush();
     }
 
     @GetMapping("/accounts")
@@ -548,5 +678,303 @@ public class AdminController {
             return defaultValue;
         }
         return value.trim();
+    }
+
+    private <T> PageResult<T> pageQuery(BaseMapper<T> mapper, LambdaQueryWrapper<T> wrapper,
+                                        Integer page, Integer pageSize) {
+        int current = normalizePage(page);
+        int size = normalizePageSize(pageSize);
+        long total = mapper.selectCount(wrapper);
+        long offset = (long) (current - 1) * size;
+        List<T> records = total == 0
+                ? List.of()
+                : mapper.selectList(wrapper.last("LIMIT " + offset + ", " + size));
+        return new PageResult<>(records, total, current, size);
+    }
+
+    private <T> PageResult<T> emptyPage(Integer page, Integer pageSize) {
+        return new PageResult<>(List.of(), 0, normalizePage(page), normalizePageSize(pageSize));
+    }
+
+    private int normalizePage(Integer page) {
+        return page == null || page < 1 ? 1 : page;
+    }
+
+    private int normalizePageSize(Integer pageSize) {
+        if (pageSize == null || pageSize < 1) {
+            return 10;
+        }
+        return Math.min(pageSize, 100);
+    }
+
+    // ========== CSV 批量导入 ==========
+
+    private ImportResultVO processImportFile(MultipartFile file) throws IOException {
+        ImportResultVO result = new ImportResultVO();
+
+        // 读取文件字节并处理编码（UTF-8 BOM 兼容）
+        byte[] bytes = file.getBytes();
+        boolean hasBom = bytes.length >= 3
+                && bytes[0] == (byte) 0xEF
+                && bytes[1] == (byte) 0xBB
+                && bytes[2] == (byte) 0xBF;
+        int offset = hasBom ? 3 : 0;
+
+        CsvReader csvReader = CsvUtil.getReader();
+        CsvData csvData = csvReader.read(
+                new InputStreamReader(
+                        new ByteArrayInputStream(bytes, offset, bytes.length - offset),
+                        StandardCharsets.UTF_8));
+
+        List<CsvRow> rows = csvData.getRows();
+        if (rows.isEmpty()) {
+            throw new RuntimeException("CSV 文件内容为空");
+        }
+
+        // 第一行表头，建立列名→索引映射
+        CsvRow header = rows.get(0);
+        Map<String, Integer> colMap = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < header.size(); i++) {
+            colMap.put(header.get(i).trim(), i);
+        }
+        validateImportHeaders(colMap);
+
+        // 本批次内去重缓存
+        Map<String, Long> batchCourseBaseCache = new java.util.HashMap<>();
+        Map<String, Long> batchLegacyCourseCache = new java.util.HashMap<>();
+        Map<String, Long> batchTeacherCache = new java.util.HashMap<>();
+        Set<String> batchInstanceCache = new java.util.HashSet<>();
+        Set<Long> linkedLegacyCourseIds = new java.util.HashSet<>();
+
+        int dataStart = 1;
+        for (int rowIdx = dataStart; rowIdx < rows.size(); rowIdx++) {
+            CsvRow row = rows.get(rowIdx);
+            if (isBlankRow(row)) {
+                continue;
+            }
+            result.setTotalRows(result.getTotalRows() + 1);
+
+            try {
+                processRow(row, rowIdx + 1, colMap,
+                        batchCourseBaseCache, batchLegacyCourseCache,
+                        batchTeacherCache, batchInstanceCache,
+                        linkedLegacyCourseIds,
+                        result);
+            } catch (Exception e) {
+                result.setFailCount(result.getFailCount() + 1);
+                result.getFailures().add(new ImportResultVO.ImportFailure(
+                        rowIdx + 1,
+                        getField(row, colMap, "courseCode"),
+                        getField(row, colMap, "courseName"),
+                        e.getMessage()));
+            }
+        }
+        return result;
+    }
+
+    private void validateImportHeaders(Map<String, Integer> colMap) {
+        List<String> requiredHeaders = List.of(
+                "courseCode", "courseName", "credit", "department",
+                "teacherName", "teacherDepartment", "semester", "className");
+        List<String> missingHeaders = requiredHeaders.stream()
+                .filter(header -> !colMap.containsKey(header))
+                .toList();
+        if (!missingHeaders.isEmpty()) {
+            throw new RuntimeException("CSV 表头缺少字段：" + String.join(", ", missingHeaders));
+        }
+    }
+
+    private boolean isBlankRow(CsvRow row) {
+        if (row.size() == 0) return true;
+        for (int i = 0; i < row.size(); i++) {
+            String val = row.get(i);
+            if (val != null && !val.isBlank()) return false;
+        }
+        return true;
+    }
+
+    private void processRow(CsvRow row, int displayRow, Map<String, Integer> colMap,
+                            Map<String, Long> batchCourseBaseCache,
+                            Map<String, Long> batchLegacyCourseCache,
+                            Map<String, Long> batchTeacherCache,
+                            Set<String> batchInstanceCache,
+                            Set<Long> linkedLegacyCourseIds,
+                            ImportResultVO result) {
+        String courseCode = getField(row, colMap, "courseCode");
+        String courseName = getField(row, colMap, "courseName");
+        String creditStr = getField(row, colMap, "credit");
+        String department = getField(row, colMap, "department");
+        String teacherName = getField(row, colMap, "teacherName");
+        String teacherDepartment = getField(row, colMap, "teacherDepartment");
+        String semester = getField(row, colMap, "semester");
+        String className = getField(row, colMap, "className");
+
+        // 必填校验
+        if (courseCode.isBlank()) throw new RuntimeException("课程代码不能为空");
+        if (courseName.isBlank()) throw new RuntimeException("课程名称不能为空");
+
+        // 标准化
+        courseCode = courseCode.trim().toUpperCase();
+        courseName = courseName.trim();
+        department = textOrNull(department);
+        teacherName = textOrNull(teacherName);
+        teacherDepartment = textOrNull(teacherDepartment);
+        if (teacherDepartment == null) teacherDepartment = department;
+        semester = textOrDefault(semester, "UNKNOWN");
+        className = textOrNull(className);
+        int credit = 0;
+        if (creditStr != null && !creditStr.isBlank()) {
+            try {
+                credit = Integer.parseInt(creditStr.trim());
+            } catch (NumberFormatException e) {
+                throw new RuntimeException("学分必须是整数");
+            }
+        }
+
+        // 查找或创建 CourseBase
+        Long courseBaseId = batchCourseBaseCache.get(courseCode);
+        boolean changed = false;
+        if (courseBaseId == null) {
+            CourseBase existing = courseBaseMapper.selectOne(
+                    new LambdaQueryWrapper<CourseBase>()
+                            .eq(CourseBase::getCourseCode, courseCode)
+                            .last("LIMIT 1"));
+            if (existing != null) {
+                courseBaseId = existing.getId();
+            } else {
+                CourseBase cb = new CourseBase();
+                cb.setCourseCode(courseCode);
+                cb.setCourseName(courseName);
+                cb.setCredit(credit);
+                cb.setDepartment(department);
+                courseBaseMapper.insert(cb);
+                courseBaseId = cb.getId();
+                changed = true;
+            }
+            batchCourseBaseCache.put(courseCode, courseBaseId);
+        }
+
+        // 查找或创建 Teacher
+        Long teacherId = null;
+        if (teacherName != null) {
+            String teacherKey = teacherName + "||" + (teacherDepartment != null ? teacherDepartment : "");
+            teacherId = batchTeacherCache.get(teacherKey);
+            if (teacherId == null) {
+                LambdaQueryWrapper<Teacher> teacherQuery = new LambdaQueryWrapper<Teacher>()
+                        .eq(Teacher::getTeacherName, teacherName);
+                if (teacherDepartment != null) {
+                    teacherQuery.eq(Teacher::getDepartment, teacherDepartment);
+                }
+                Teacher existing = teacherMapper.selectOne(teacherQuery.last("LIMIT 1"));
+                if (existing != null) {
+                    teacherId = existing.getId();
+                } else {
+                    Teacher t = new Teacher();
+                    t.setTeacherName(teacherName);
+                    t.setDepartment(teacherDepartment);
+                    t.setAvgScore(0.0);
+                    t.setAvgTeachingScore(0.0);
+                    t.setAvgWorkloadScore(0.0);
+                    teacherMapper.insert(t);
+                    teacherId = t.getId();
+                    changed = true;
+                }
+                batchTeacherCache.put(teacherKey, teacherId);
+            }
+        }
+
+        // 查找或创建对应的旧 course 表记录（前端首页展示需要）
+        Long legacyCourseId = batchLegacyCourseCache.get(courseCode);
+        if (legacyCourseId == null) {
+            Course legacy = courseMapper.selectOne(
+                    new LambdaQueryWrapper<Course>()
+                            .eq(Course::getCourseCode, courseCode)
+                            .last("LIMIT 1"));
+            if (legacy != null) {
+                legacyCourseId = legacy.getId();
+            } else {
+                Course c = new Course();
+                c.setCourseCode(courseCode);
+                c.setCourseName(courseName);
+                c.setCredit(credit);
+                c.setDepartment(department);
+                c.setTeacherId(teacherId);
+                c.setAvgScore(0.0);
+                c.setGradingScore(0.0);
+                c.setAvgTeachingScore(0.0);
+                c.setAvgWorkloadScore(0.0);
+                c.setReviewCount(0);
+                courseMapper.insert(c);
+                legacyCourseId = c.getId();
+                changed = true;
+            }
+            batchLegacyCourseCache.put(courseCode, legacyCourseId);
+        }
+
+        if (teacherId == null) {
+            if (changed) {
+                result.setSuccessCount(result.getSuccessCount() + 1);
+            } else {
+                result.setSkipCount(result.getSkipCount() + 1);
+            }
+            return;
+        }
+
+        // 去重检查 CourseInstance
+        String instanceKey = courseBaseId + "_" + teacherId + "_"
+                + (semester != null ? semester : "NULL") + "_"
+                + (className != null ? className : "NULL");
+        if (batchInstanceCache.contains(instanceKey)) {
+            result.setSkipCount(result.getSkipCount() + 1);
+            return;
+        }
+        LambdaQueryWrapper<CourseInstance> instanceQuery = new LambdaQueryWrapper<CourseInstance>()
+                .eq(CourseInstance::getCourseBaseId, courseBaseId)
+                .eq(CourseInstance::getSemester, semester)
+                .eq(CourseInstance::getTeacherId, teacherId);
+        if (className != null) {
+            instanceQuery.eq(CourseInstance::getClassName, className);
+        } else {
+            instanceQuery.isNull(CourseInstance::getClassName);
+        }
+        if (courseInstanceMapper.selectCount(instanceQuery) > 0) {
+            batchInstanceCache.add(instanceKey);
+            result.setSkipCount(result.getSkipCount() + 1);
+            return;
+        }
+
+        // 创建 CourseInstance（legacy_course_id 有唯一约束，每 course_base 只设第一个）
+        CourseInstance ci = new CourseInstance();
+        ci.setCourseBaseId(courseBaseId);
+        if (!linkedLegacyCourseIds.contains(legacyCourseId) && !hasInstanceLinkedToLegacyCourse(legacyCourseId)) {
+            ci.setLegacyCourseId(legacyCourseId);
+            linkedLegacyCourseIds.add(legacyCourseId);
+        }
+        ci.setTeacherId(teacherId);
+        ci.setSemester(semester);
+        ci.setClassName(className);
+        ci.setAvgScore(0.0);
+        ci.setGradingScore(0.0);
+        ci.setAvgTeachingScore(0.0);
+        ci.setAvgWorkloadScore(0.0);
+        ci.setReviewCount(0);
+        courseInstanceMapper.insert(ci);
+        batchInstanceCache.add(instanceKey);
+        result.setSuccessCount(result.getSuccessCount() + 1);
+    }
+
+    private boolean hasInstanceLinkedToLegacyCourse(Long legacyCourseId) {
+        if (legacyCourseId == null) {
+            return false;
+        }
+        return courseInstanceMapper.selectCount(new LambdaQueryWrapper<CourseInstance>()
+                .eq(CourseInstance::getLegacyCourseId, legacyCourseId)) > 0;
+    }
+
+    private String getField(CsvRow row, Map<String, Integer> colMap, String colName) {
+        Integer idx = colMap.get(colName);
+        if (idx == null || idx >= row.size()) return "";
+        String val = row.get(idx);
+        return val == null ? "" : val.trim();
     }
 }

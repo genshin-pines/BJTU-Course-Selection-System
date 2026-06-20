@@ -79,6 +79,16 @@
       <el-tab-pane v-if="canMaintainData" label="基础数据" name="dataMaintenance">
         <el-tabs v-model="dataTab">
           <el-tab-pane label="课程" name="courses">
+            <div class="section-toolbar search-bar">
+              <el-input v-model="courseFilter.courseCode" placeholder="课程代码" style="width: 140px" clearable
+                @keyup.enter="searchCourses" />
+              <el-input v-model="courseFilter.courseName" placeholder="课程名称" style="width: 180px" clearable
+                @keyup.enter="searchCourses" />
+              <el-input v-model="courseFilter.department" placeholder="学院" style="width: 160px" clearable
+                @keyup.enter="searchCourses" />
+              <el-button type="primary" @click="searchCourses">搜索</el-button>
+              <el-button @click="resetCourseFilter">重置</el-button>
+            </div>
             <div class="section-toolbar">
               <el-input v-model="courseForm.courseCode" placeholder="课程代码" style="width: 140px" />
               <el-input v-model="courseForm.courseName" placeholder="课程名称" style="width: 220px" />
@@ -102,9 +112,28 @@
                 </template>
               </el-table-column>
             </el-table>
+            <div class="table-pagination">
+              <el-pagination
+                v-model:current-page="coursePage.current"
+                v-model:page-size="coursePage.size"
+                :page-sizes="pageSizeOptions"
+                :total="coursePage.total"
+                layout="total, sizes, prev, pager, next"
+                @size-change="handleCourseSizeChange"
+                @current-change="handleCoursePageChange"
+              />
+            </div>
           </el-tab-pane>
 
           <el-tab-pane label="教师" name="teachers">
+            <div class="section-toolbar search-bar">
+              <el-input v-model="teacherFilter.teacherName" placeholder="教师姓名" style="width: 180px" clearable
+                @keyup.enter="searchTeachers" />
+              <el-input v-model="teacherFilter.department" placeholder="学院" style="width: 180px" clearable
+                @keyup.enter="searchTeachers" />
+              <el-button type="primary" @click="searchTeachers">搜索</el-button>
+              <el-button @click="resetTeacherFilter">重置</el-button>
+            </div>
             <div class="section-toolbar">
               <el-input v-model="teacherForm.teacherName" placeholder="教师姓名" style="width: 220px" />
               <el-input v-model="teacherForm.department" placeholder="所属学院" style="width: 220px" />
@@ -127,13 +156,34 @@
                 </template>
               </el-table-column>
             </el-table>
+            <div class="table-pagination">
+              <el-pagination
+                v-model:current-page="teacherPage.current"
+                v-model:page-size="teacherPage.size"
+                :page-sizes="pageSizeOptions"
+                :total="teacherPage.total"
+                layout="total, sizes, prev, pager, next"
+                @size-change="handleTeacherSizeChange"
+                @current-change="handleTeacherPageChange"
+              />
+            </div>
           </el-tab-pane>
 
           <el-tab-pane label="开课实例" name="instances">
+            <div class="section-toolbar search-bar">
+              <el-input v-model="instanceFilter.courseName" placeholder="课程名称" style="width: 180px" clearable
+                @keyup.enter="searchInstances" />
+              <el-input v-model="instanceFilter.teacherName" placeholder="教师姓名" style="width: 160px" clearable
+                @keyup.enter="searchInstances" />
+              <el-input v-model="instanceFilter.semester" placeholder="学期" style="width: 150px" clearable
+                @keyup.enter="searchInstances" />
+              <el-button type="primary" @click="searchInstances">搜索</el-button>
+              <el-button @click="resetInstanceFilter">重置</el-button>
+            </div>
             <div class="section-toolbar">
               <el-select v-model="instanceForm.courseBaseId" filterable placeholder="选择课程" style="width: 260px">
                 <el-option
-                  v-for="course in adminCourses"
+                  v-for="course in adminCourseOptions"
                   :key="course.id"
                   :label="`${course.courseCode} ${course.courseName}`"
                   :value="course.id"
@@ -141,7 +191,7 @@
               </el-select>
               <el-select v-model="instanceForm.teacherId" filterable placeholder="选择教师" style="width: 220px">
                 <el-option
-                  v-for="teacher in adminTeachers"
+                  v-for="teacher in adminTeacherOptions"
                   :key="teacher.id"
                   :label="teacher.teacherName"
                   :value="teacher.id"
@@ -172,6 +222,17 @@
                 </template>
               </el-table-column>
             </el-table>
+            <div class="table-pagination">
+              <el-pagination
+                v-model:current-page="instancePage.current"
+                v-model:page-size="instancePage.size"
+                :page-sizes="pageSizeOptions"
+                :total="instancePage.total"
+                layout="total, sizes, prev, pager, next"
+                @size-change="handleInstanceSizeChange"
+                @current-change="handleInstancePageChange"
+              />
+            </div>
           </el-tab-pane>
         </el-tabs>
       </el-tab-pane>
@@ -217,6 +278,34 @@
       </el-tab-pane>
 
       <el-tab-pane v-if="canViewAuditLogs" label="审计日志" name="auditLogs">
+        <div class="section-toolbar search-bar audit-search-bar">
+          <el-select v-model="auditFilter.operateType" placeholder="操作类型" style="width: 190px" clearable>
+            <el-option
+              v-for="item in auditOperateOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+          <el-input v-model="auditFilter.operatorId" placeholder="管理员 ID" style="width: 130px" clearable
+            @keyup.enter="searchAuditLogs" />
+          <el-input v-model="auditFilter.reviewId" placeholder="评价 ID" style="width: 130px" clearable
+            @keyup.enter="searchAuditLogs" />
+          <el-input v-model="auditFilter.courseName" placeholder="课程名称" style="width: 180px" clearable
+            @keyup.enter="searchAuditLogs" />
+          <el-date-picker
+            v-model="auditFilter.timeRange"
+            type="datetimerange"
+            range-separator="至"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            format="YYYY-MM-DD HH:mm"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 360px"
+          />
+          <el-button type="primary" @click="searchAuditLogs">搜索</el-button>
+          <el-button @click="resetAuditFilter">重置</el-button>
+        </div>
         <el-table :data="auditLogs" v-loading="auditLogLoading" border>
           <el-table-column prop="id" label="ID" width="70" />
           <el-table-column prop="adminId" label="管理员 ID" width="110" />
@@ -238,6 +327,92 @@
           </el-table-column>
         </el-table>
       </el-tab-pane>
+
+      <el-tab-pane v-if="canMaintainData" label="数据导入" name="import">
+        <div class="import-section">
+          <el-alert type="info" :closable="false" class="import-alert">
+            <template #title>
+              <ul class="import-hints">
+                <li>支持 CSV 格式文件，编码建议 <b>UTF-8</b></li>
+                <li>第一行为表头，数据从第二行开始</li>
+                <li>课程代码和课程名称为必填字段</li>
+                <li>重复的课程/教师/开课实例会自动跳过，<b>不会覆盖</b>已有数据</li>
+              </ul>
+            </template>
+          </el-alert>
+
+          <div class="import-toolbar">
+            <el-button type="primary" @click="downloadTemplate">
+              <el-icon style="margin-right:4px"><Download /></el-icon>下载导入模板
+            </el-button>
+          </div>
+
+          <el-upload
+            class="import-upload"
+            drag
+            accept=".csv"
+            :auto-upload="false"
+            :limit="1"
+            :on-change="handleFileChange"
+            :on-remove="handleFileRemove"
+            :file-list="fileList"
+          >
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+            <div class="el-upload__text">拖拽 CSV 文件到此处，或 <em>点击上传</em></div>
+            <template #tip>
+              <div class="el-upload__tip">仅支持 .csv 格式文件</div>
+            </template>
+          </el-upload>
+
+          <div class="import-action">
+            <el-button
+              type="success"
+              :disabled="!uploadFile || importLoading"
+              :loading="importLoading"
+              @click="handleImport"
+            >
+              开始导入
+            </el-button>
+          </div>
+
+          <div v-if="importResult" class="import-result">
+            <el-divider>导入结果</el-divider>
+            <el-row :gutter="20">
+              <el-col :span="8">
+                <el-card shadow="hover" class="result-card success">
+                  <div class="result-num">{{ importResult.successCount }}</div>
+                  <div class="result-label">成功</div>
+                </el-card>
+              </el-col>
+              <el-col :span="8">
+                <el-card shadow="hover" class="result-card skip">
+                  <div class="result-num">{{ importResult.skipCount }}</div>
+                  <div class="result-label">跳过</div>
+                </el-card>
+              </el-col>
+              <el-col :span="8">
+                <el-card shadow="hover" class="result-card fail">
+                  <div class="result-num">{{ importResult.failCount }}</div>
+                  <div class="result-label">失败</div>
+                </el-card>
+              </el-col>
+            </el-row>
+
+            <div v-if="importResult.failures && importResult.failures.length > 0" class="failure-section">
+              <div class="failure-header">
+                <h4>失败详情</h4>
+                <el-button size="small" @click="copyErrors">复制错误信息</el-button>
+              </div>
+              <el-table :data="importResult.failures" border size="small">
+                <el-table-column prop="row" label="行号" width="80" />
+                <el-table-column prop="courseCode" label="课程代码" width="150" />
+                <el-table-column prop="courseName" label="课程名称" min-width="200" />
+                <el-table-column prop="reason" label="失败原因" min-width="250" />
+              </el-table>
+            </div>
+          </div>
+        </div>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -245,6 +420,7 @@
 <script setup>
 import { computed, ref, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Download, UploadFilled } from '@element-plus/icons-vue'
 import { adminApi } from '@/api/admin'
 import { tagApi } from '@/api/tag'
 import { useAuthStore } from '@/stores/auth'
@@ -261,26 +437,68 @@ const tags = ref([])
 const newTagName = ref('')
 const auditLogs = ref([])
 const auditLogLoading = ref(false)
+const auditFilter = ref(blankAuditFilter())
+const pageSizeOptions = [10, 20, 50, 100]
 
 const adminAccounts = ref([])
 const accountLoading = ref(false)
 const accountForm = ref({ username: '', password: '', role: 'AUDITOR', department: '' })
 
 const adminCourses = ref([])
+const adminCourseOptions = ref([])
 const courseLoading = ref(false)
 const courseForm = ref(blankCourseForm())
+const coursePage = ref(blankPageState())
 const adminTeachers = ref([])
+const adminTeacherOptions = ref([])
 const teacherLoading = ref(false)
 const teacherForm = ref(blankTeacherForm())
+const teacherPage = ref(blankPageState())
 const adminInstances = ref([])
 const instanceLoading = ref(false)
 const instanceForm = ref(blankInstanceForm())
+const instancePage = ref(blankPageState())
+
+// 筛选条件
+const courseFilter = ref({ courseCode: '', courseName: '', department: '' })
+const teacherFilter = ref({ teacherName: '', department: '' })
+const instanceFilter = ref({ courseName: '', teacherName: '', semester: '' })
+
+// 数据导入
+const uploadFile = ref(null)
+const fileList = ref([])
+const importLoading = ref(false)
+const importResult = ref(null)
 
 const adminRoleOptions = [
   { value: 'SUPER_ADMIN', label: '超级管理员' },
   { value: 'DEPT_OP', label: '院系维护员' },
   { value: 'AUDITOR', label: '内容审核员' }
 ]
+
+const auditOperateOptions = [
+  'APPROVE_REVIEW',
+  'HIDE_REVIEW',
+  'DELETE_REVIEW',
+  'RESOLVE_REPORT',
+  'DISMISS_REPORT',
+  'CREATE_TAG',
+  'DELETE_TAG',
+  'CREATE_COURSE',
+  'UPDATE_COURSE',
+  'DELETE_COURSE',
+  'CREATE_TEACHER',
+  'UPDATE_TEACHER',
+  'DELETE_TEACHER',
+  'CREATE_COURSE_INSTANCE',
+  'UPDATE_COURSE_INSTANCE',
+  'DELETE_COURSE_INSTANCE',
+  'IMPORT_COURSES',
+  'CREATE_ADMIN',
+  'UPDATE_ADMIN_ROLE',
+  'RESET_ADMIN_PASSWORD',
+  'DELETE_ADMIN'
+].map(value => ({ value, label: operateTypeText(value) }))
 
 const adminRole = computed(() => authStore.adminRole || 'SUPER_ADMIN')
 const canGovernContent = computed(() => ['SUPER_ADMIN', 'AUDITOR'].includes(adminRole.value))
@@ -312,6 +530,7 @@ function ensureAccessibleTab() {
     reports: canGovernContent.value,
     tags: canMaintainData.value,
     dataMaintenance: canMaintainData.value,
+    import: canMaintainData.value,
     accounts: canManageAdmins.value,
     auditLogs: canViewAuditLogs.value
   }
@@ -503,11 +722,50 @@ async function loadAdminCourses() {
   if (!ensureAdmin() || !canMaintainData.value) return
   courseLoading.value = true
   try {
-    const res = await adminApi.getAdminCourses()
-    adminCourses.value = res.data || []
+    const params = {
+      page: coursePage.value.current,
+      pageSize: coursePage.value.size
+    }
+    if (courseFilter.value.courseCode) params.courseCode = courseFilter.value.courseCode
+    if (courseFilter.value.courseName) params.courseName = courseFilter.value.courseName
+    if (courseFilter.value.department) params.department = courseFilter.value.department
+    const res = await adminApi.getAdminCourses(params)
+    applyPageResult(res.data, adminCourses, coursePage)
+    if (adminCourses.value.length === 0 && coursePage.value.current > 1 && coursePage.value.total > 0) {
+      coursePage.value.current -= 1
+      await loadAdminCourses()
+    }
   } finally {
     courseLoading.value = false
   }
+}
+
+async function loadAdminCourseOptions() {
+  if (!ensureAdmin() || !canMaintainData.value) return
+  const res = await adminApi.getAdminCourses({ page: 1, pageSize: 100 })
+  adminCourseOptions.value = res.data?.records || []
+}
+
+function searchCourses() {
+  coursePage.value.current = 1
+  loadAdminCourses()
+}
+
+function resetCourseFilter() {
+  courseFilter.value = { courseCode: '', courseName: '', department: '' }
+  coursePage.value.current = 1
+  loadAdminCourses()
+}
+
+function handleCoursePageChange(page) {
+  coursePage.value.current = page
+  loadAdminCourses()
+}
+
+function handleCourseSizeChange(size) {
+  coursePage.value.size = size
+  coursePage.value.current = 1
+  loadAdminCourses()
 }
 
 async function handleSaveCourse() {
@@ -530,7 +788,7 @@ async function handleSaveCourse() {
     ElMessage.success('课程已创建')
   }
   resetCourseForm()
-  await loadAdminCourses()
+  await Promise.all([loadAdminCourses(), loadAdminCourseOptions()])
 }
 
 function editCourse(row) {
@@ -549,7 +807,7 @@ async function handleDeleteCourse(row) {
     await ElMessageBox.confirm(`确认删除课程 ${row.courseName}？`, '删除课程', { type: 'warning' })
     await adminApi.deleteAdminCourse(row.id)
     ElMessage.success('课程已删除')
-    await Promise.all([loadAdminCourses(), loadAdminInstances()])
+    await Promise.all([loadAdminCourses(), loadAdminCourseOptions(), loadAdminInstances()])
   } catch (e) {}
 }
 
@@ -557,11 +815,49 @@ async function loadAdminTeachers() {
   if (!ensureAdmin() || !canMaintainData.value) return
   teacherLoading.value = true
   try {
-    const res = await adminApi.getAdminTeachers()
-    adminTeachers.value = res.data || []
+    const params = {
+      page: teacherPage.value.current,
+      pageSize: teacherPage.value.size
+    }
+    if (teacherFilter.value.teacherName) params.teacherName = teacherFilter.value.teacherName
+    if (teacherFilter.value.department) params.department = teacherFilter.value.department
+    const res = await adminApi.getAdminTeachers(params)
+    applyPageResult(res.data, adminTeachers, teacherPage)
+    if (adminTeachers.value.length === 0 && teacherPage.value.current > 1 && teacherPage.value.total > 0) {
+      teacherPage.value.current -= 1
+      await loadAdminTeachers()
+    }
   } finally {
     teacherLoading.value = false
   }
+}
+
+async function loadAdminTeacherOptions() {
+  if (!ensureAdmin() || !canMaintainData.value) return
+  const res = await adminApi.getAdminTeachers({ page: 1, pageSize: 100 })
+  adminTeacherOptions.value = res.data?.records || []
+}
+
+function searchTeachers() {
+  teacherPage.value.current = 1
+  loadAdminTeachers()
+}
+
+function resetTeacherFilter() {
+  teacherFilter.value = { teacherName: '', department: '' }
+  teacherPage.value.current = 1
+  loadAdminTeachers()
+}
+
+function handleTeacherPageChange(page) {
+  teacherPage.value.current = page
+  loadAdminTeachers()
+}
+
+function handleTeacherSizeChange(size) {
+  teacherPage.value.size = size
+  teacherPage.value.current = 1
+  loadAdminTeachers()
 }
 
 async function handleSaveTeacher() {
@@ -582,7 +878,7 @@ async function handleSaveTeacher() {
     ElMessage.success('教师已创建')
   }
   resetTeacherForm()
-  await loadAdminTeachers()
+  await Promise.all([loadAdminTeachers(), loadAdminTeacherOptions()])
 }
 
 function editTeacher(row) {
@@ -599,7 +895,7 @@ async function handleDeleteTeacher(row) {
     await ElMessageBox.confirm(`确认删除教师 ${row.teacherName}？`, '删除教师', { type: 'warning' })
     await adminApi.deleteAdminTeacher(row.id)
     ElMessage.success('教师已删除')
-    await Promise.all([loadAdminTeachers(), loadAdminInstances()])
+    await Promise.all([loadAdminTeachers(), loadAdminTeacherOptions(), loadAdminInstances()])
   } catch (e) {}
 }
 
@@ -607,11 +903,44 @@ async function loadAdminInstances() {
   if (!ensureAdmin() || !canMaintainData.value) return
   instanceLoading.value = true
   try {
-    const res = await adminApi.getAdminCourseInstances()
-    adminInstances.value = res.data || []
+    const params = {
+      page: instancePage.value.current,
+      pageSize: instancePage.value.size
+    }
+    if (instanceFilter.value.courseName) params.courseName = instanceFilter.value.courseName
+    if (instanceFilter.value.teacherName) params.teacherName = instanceFilter.value.teacherName
+    if (instanceFilter.value.semester) params.semester = instanceFilter.value.semester
+    const res = await adminApi.getAdminCourseInstances(params)
+    applyPageResult(res.data, adminInstances, instancePage)
+    if (adminInstances.value.length === 0 && instancePage.value.current > 1 && instancePage.value.total > 0) {
+      instancePage.value.current -= 1
+      await loadAdminInstances()
+    }
   } finally {
     instanceLoading.value = false
   }
+}
+
+function searchInstances() {
+  instancePage.value.current = 1
+  loadAdminInstances()
+}
+
+function resetInstanceFilter() {
+  instanceFilter.value = { courseName: '', teacherName: '', semester: '' }
+  instancePage.value.current = 1
+  loadAdminInstances()
+}
+
+function handleInstancePageChange(page) {
+  instancePage.value.current = page
+  loadAdminInstances()
+}
+
+function handleInstanceSizeChange(size) {
+  instancePage.value.size = size
+  instancePage.value.current = 1
+  loadAdminInstances()
 }
 
 async function handleSaveInstance() {
@@ -663,15 +992,43 @@ async function loadAuditLogs() {
   if (!ensureAdmin() || !canViewAuditLogs.value) return
   auditLogLoading.value = true
   try {
-    const res = await adminApi.getAuditLogs()
+    const res = await adminApi.getAuditLogs(buildAuditParams())
     auditLogs.value = res.data || []
   } finally {
     auditLogLoading.value = false
   }
 }
 
+function buildAuditParams() {
+  const params = {}
+  if (auditFilter.value.operateType) params.operateType = auditFilter.value.operateType
+  if (auditFilter.value.operatorId) params.operatorId = auditFilter.value.operatorId
+  if (auditFilter.value.reviewId) params.reviewId = auditFilter.value.reviewId
+  if (auditFilter.value.courseName) params.courseName = auditFilter.value.courseName
+  if (auditFilter.value.timeRange?.length === 2) {
+    params.startTime = auditFilter.value.timeRange[0]
+    params.endTime = auditFilter.value.timeRange[1]
+  }
+  return params
+}
+
+function searchAuditLogs() {
+  loadAuditLogs()
+}
+
+function resetAuditFilter() {
+  auditFilter.value = blankAuditFilter()
+  loadAuditLogs()
+}
+
 function loadDataMaintenance() {
-  return Promise.all([loadAdminCourses(), loadAdminTeachers(), loadAdminInstances()])
+  return Promise.all([
+    loadAdminCourses(),
+    loadAdminTeachers(),
+    loadAdminInstances(),
+    loadAdminCourseOptions(),
+    loadAdminTeacherOptions()
+  ])
 }
 
 function loadAuditLogsIfActive() {
@@ -699,6 +1056,27 @@ function blankInstanceForm() {
   return { id: null, courseBaseId: null, teacherId: null, semester: '', className: '' }
 }
 
+function blankPageState() {
+  return { current: 1, size: 10, total: 0 }
+}
+
+function blankAuditFilter() {
+  return {
+    operateType: '',
+    operatorId: '',
+    reviewId: '',
+    courseName: '',
+    timeRange: []
+  }
+}
+
+function applyPageResult(data, recordsRef, pageRef) {
+  recordsRef.value = data?.records || []
+  pageRef.value.total = Number(data?.total || 0)
+  pageRef.value.current = Number(data?.page || pageRef.value.current || 1)
+  pageRef.value.size = Number(data?.size || pageRef.value.size || 10)
+}
+
 function resetCourseForm() {
   courseForm.value = blankCourseForm()
 }
@@ -712,12 +1090,14 @@ function resetInstanceForm() {
 }
 
 function courseName(courseBaseId) {
-  const course = adminCourses.value.find((item) => item.id === courseBaseId)
+  const course = adminCourseOptions.value.find((item) => item.id === courseBaseId)
+    || adminCourses.value.find((item) => item.id === courseBaseId)
   return course ? `${course.courseCode} ${course.courseName}` : `课程 #${courseBaseId || '-'}`
 }
 
 function teacherName(teacherId) {
-  const teacher = adminTeachers.value.find((item) => item.id === teacherId)
+  const teacher = adminTeacherOptions.value.find((item) => item.id === teacherId)
+    || adminTeachers.value.find((item) => item.id === teacherId)
   return teacher?.teacherName || `教师 #${teacherId || '-'}`
 }
 
@@ -753,6 +1133,7 @@ function operateTypeText(type) {
     CREATE_COURSE_INSTANCE: '新增开课实例',
     UPDATE_COURSE_INSTANCE: '更新开课实例',
     DELETE_COURSE_INSTANCE: '删除开课实例',
+    IMPORT_COURSES: '导入课程数据',
     CREATE_ADMIN: '新增管理员',
     UPDATE_ADMIN_ROLE: '更新管理员角色',
     RESET_ADMIN_PASSWORD: '重置管理员密码',
@@ -785,6 +1166,103 @@ function formatTime(time) {
 
 function formatScore(score) {
   return Number(score || 0).toFixed(1)
+}
+
+// ========== 数据导入 ==========
+
+function handleFileChange(file) {
+  if (!isCsvFile(file)) {
+    ElMessage.warning('仅支持选择 .csv 文件')
+    uploadFile.value = null
+    fileList.value = []
+    importResult.value = null
+    return
+  }
+  uploadFile.value = file.raw
+  fileList.value = [file]
+  importResult.value = null
+}
+
+function handleFileRemove() {
+  uploadFile.value = null
+  fileList.value = []
+  importResult.value = null
+}
+
+function isCsvFile(file) {
+  const name = file?.name || file?.raw?.name || ''
+  return name.toLowerCase().endsWith('.csv')
+}
+
+async function handleImport() {
+  if (!ensureAdmin() || !canMaintainData.value) return
+  if (!uploadFile.value) {
+    ElMessage.warning('请先选择 CSV 文件')
+    return
+  }
+  try {
+    await ElMessageBox.confirm('确认导入课程数据？重复数据将自动跳过，不会覆盖已有课程。', '确认导入', {
+      type: 'warning',
+      confirmButtonText: '确认导入',
+      cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
+  importLoading.value = true
+  importResult.value = null
+  try {
+    const formData = new FormData()
+    formData.append('file', uploadFile.value)
+    const res = await adminApi.importCourses(formData)
+    importResult.value = res.data
+    if (importResult.value.failCount === 0 && importResult.value.successCount > 0) {
+      ElMessage.success(`导入完成：成功 ${importResult.value.successCount} 门，跳过 ${importResult.value.skipCount} 门`)
+    } else if (importResult.value.failCount > 0) {
+      ElMessage.warning(`导入完成：成功 ${importResult.value.successCount} 门，跳过 ${importResult.value.skipCount} 门，失败 ${importResult.value.failCount} 门`)
+    } else if (importResult.value.successCount === 0) {
+      ElMessage.info('导入完成：没有新增课程，全部已存在')
+    }
+    await Promise.all([
+      loadAdminCourses(),
+      loadAdminTeachers(),
+      loadAdminInstances(),
+      loadAdminCourseOptions(),
+      loadAdminTeacherOptions()
+    ])
+  } catch (e) {
+    ElMessage.error('导入失败：' + (e.response?.data?.message || e.message || '未知错误'))
+  } finally {
+    importLoading.value = false
+  }
+}
+
+function downloadTemplate() {
+  if (!ensureAdmin() || !canMaintainData.value) return
+  adminApi.downloadImportTemplate().then(res => {
+    const blob = res instanceof Blob ? res : new Blob([res], { type: 'text/csv;charset=utf-8' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'course_import_template.csv'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  }).catch(() => {
+    ElMessage.error('模板下载失败')
+  })
+}
+
+function copyErrors() {
+  if (!importResult.value?.failures?.length) return
+  const text = importResult.value.failures.map(
+    f => `行${f.row}: [${f.courseCode}] ${f.courseName} — ${f.reason}`
+  ).join('\n')
+  navigator.clipboard.writeText(text).then(
+    () => ElMessage.success('错误信息已复制到剪贴板'),
+    () => ElMessage.warning('复制失败，请手动复制')
+  )
 }
 
 watch(activeTab, () => {
@@ -830,5 +1308,95 @@ onMounted(() => {
 
 .muted {
   color: #999;
+}
+
+/* 数据导入 */
+.import-section {
+  max-width: 800px;
+}
+
+.import-alert {
+  margin-bottom: 16px;
+}
+
+.import-hints {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.import-hints li {
+  margin-bottom: 4px;
+}
+
+.import-toolbar {
+  margin-bottom: 16px;
+}
+
+.import-upload {
+  margin-bottom: 16px;
+}
+
+.import-action {
+  margin-bottom: 24px;
+}
+
+.import-result .result-card {
+  text-align: center;
+  border-radius: 8px;
+}
+
+.import-result .result-card.success {
+  border-color: #67c23a;
+  background: #f0f9eb;
+}
+
+.import-result .result-card.skip {
+  border-color: #e6a23c;
+  background: #fdf6ec;
+}
+
+.import-result .result-card.fail {
+  border-color: #f56c6c;
+  background: #fef0f0;
+}
+
+.import-result .result-num {
+  font-size: 36px;
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+.import-result .result-card.success .result-num {
+  color: #67c23a;
+}
+
+.import-result .result-card.skip .result-num {
+  color: #e6a23c;
+}
+
+.import-result .result-card.fail .result-num {
+  color: #f56c6c;
+}
+
+.import-result .result-label {
+  font-size: 14px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.failure-section {
+  margin-top: 20px;
+}
+
+.failure-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.failure-header h4 {
+  margin: 0;
+  font-size: 15px;
 }
 </style>

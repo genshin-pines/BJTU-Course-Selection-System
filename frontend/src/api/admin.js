@@ -25,8 +25,8 @@ export const adminApi = {
   dismissReport(id, reason) {
     return request.put(`/admin/reports/${id}/dismiss`, { reason })
   },
-  getAuditLogs() {
-    return request.get('/admin/audit-logs')
+  getAuditLogs(params = {}) {
+    return request.get('/admin/audit-logs', { params })
   },
   createTag(tagName) {
     return request.post('/admin/tags', null, { params: { tagName } })
@@ -49,8 +49,8 @@ export const adminApi = {
   deleteAdminAccount(id) {
     return request.delete(`/admin/accounts/${id}`)
   },
-  getAdminCourses() {
-    return request.get('/admin/courses')
+  getAdminCourses(params = {}) {
+    return request.get('/admin/courses', { params })
   },
   createAdminCourse(data) {
     return request.post('/admin/courses', data)
@@ -61,8 +61,8 @@ export const adminApi = {
   deleteAdminCourse(id) {
     return request.delete(`/admin/courses/${id}`)
   },
-  getAdminTeachers() {
-    return request.get('/admin/teachers')
+  getAdminTeachers(params = {}) {
+    return request.get('/admin/teachers', { params })
   },
   createAdminTeacher(data) {
     return request.post('/admin/teachers', data)
@@ -73,10 +73,8 @@ export const adminApi = {
   deleteAdminTeacher(id) {
     return request.delete(`/admin/teachers/${id}`)
   },
-  getAdminCourseInstances(courseBaseId) {
-    return request.get('/admin/course-instances', {
-      params: courseBaseId ? { courseBaseId } : {}
-    })
+  getAdminCourseInstances(params = {}) {
+    return request.get('/admin/course-instances', { params })
   },
   createAdminCourseInstance(data) {
     return request.post('/admin/course-instances', data)
@@ -86,5 +84,13 @@ export const adminApi = {
   },
   deleteAdminCourseInstance(id) {
     return request.delete(`/admin/course-instances/${id}`)
+  },
+  importCourses(formData) {
+    return request.post('/admin/courses/import', formData)
+  },
+  downloadImportTemplate() {
+    return request.get('/admin/courses/import/template', {
+      responseType: 'blob'
+    })
   }
 }
