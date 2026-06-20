@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> implements CourseService {
@@ -98,6 +99,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 request.getMaxWorkloadScore(),
                 request.getMinReviewCount(),
                 request.getTagIds(),
+                request.getTagMatchMode(),
                 request.getSortBy(),
                 request.getSortOrder(),
                 offset,
@@ -133,5 +135,14 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             return Collections.emptyList();
         }
         return courseInstanceMapper.selectVOByCourseBaseId(instance.getCourseBaseId());
+    }
+
+    @Override
+    public Map<String, List<String>> getFilterOptions() {
+        Map<String, List<String>> options = new java.util.HashMap<>();
+        options.put("departments", baseMapper.selectDistinctDepartments());
+        options.put("teachers", baseMapper.selectDistinctTeachers());
+        options.put("semesters", baseMapper.selectDistinctSemesters());
+        return options;
     }
 }

@@ -7,10 +7,12 @@ import com.bjtu.review.vo.CourseVO;
 import com.bjtu.review.dto.CourseSearchRequest;
 
 import java.util.List;
+import java.util.Map;
 
 public interface CourseService extends IService<Course> {
     CourseVO getCourseDetail(Long id);
     CourseVO getCourseInstanceDetail(Long instanceId);
     PageResult<CourseVO> searchCourses(CourseSearchRequest request);
     List<CourseInstanceVO> getCourseInstances(Long id);
+    Map<String, List<String>> getFilterOptions();
 }

@@ -9,6 +9,7 @@ import com.bjtu.review.vo.CourseVO;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/course")
@@ -40,5 +41,10 @@ public class CourseController {
     @GetMapping("/{id}/instances")
     public Result<List<CourseInstanceVO>> getInstances(@PathVariable Long id) {
         return Result.ok(courseService.getCourseInstances(id));
+    }
+
+    @GetMapping("/filters/options")
+    public Result<Map<String, List<String>>> getFilterOptions() {
+        return Result.ok(courseService.getFilterOptions());
     }
 }

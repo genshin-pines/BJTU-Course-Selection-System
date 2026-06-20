@@ -20,6 +20,7 @@ public class CourseSearchRequest {
     private Double maxWorkloadScore;
     private Integer minReviewCount;
     private List<Long> tagIds;
+    private String tagMatchMode = "OR"; // OR 或 AND
     private String sortBy = "reviewCount";
     private String sortOrder = "desc";
     private Integer difficultyLevel;
