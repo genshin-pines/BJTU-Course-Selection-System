@@ -260,13 +260,30 @@ public interface ReviewMapper extends BaseMapper<Review> {
                                       @Param("pageSize") int pageSize);
 
     @Select("<script>" +
-            "SELECT COUNT(1) " +
-            "FROM review r " +
-            "LEFT JOIN course_instance ci ON r.course_instance_id = ci.id " +
-            "LEFT JOIN course_base cb ON cb.id = COALESCE(ci.course_base_id, r.course_id) " +
-            "LEFT JOIN teacher t ON r.teacher_id = t.id " +
-            "WHERE 1 = 1 " +
-            ADMIN_REVIEW_WHERE +
+            "SELECT COUNT(1) FROM review r WHERE 1 = 1 " +
+            "<if test='role == \"DEPT_OP\" and scopedDepartment != null and scopedDepartment != \"\"'>" +
+            "  AND (course_id IN (SELECT id FROM course_base WHERE department = #{scopedDepartment}) " +
+            "   OR teacher_id IN (SELECT id FROM teacher WHERE department = #{scopedDepartment}))" +
+            "</if>" +
+            "<if test='status != null and status != \"\"'>" +
+            "  AND r.status = #{status} " +
+            "</if>" +
+            "<if test='courseName != null and courseName != \"\"'>" +
+            "  AND course_id IN (SELECT id FROM course_base WHERE course_name LIKE CONCAT('%', #{courseName}, '%'))" +
+            "</if>" +
+            "<if test='teacherName != null and teacherName != \"\"'>" +
+            "  AND teacher_id IN (SELECT id FROM teacher WHERE teacher_name LIKE CONCAT('%', #{teacherName}, '%'))" +
+            "</if>" +
+            "<if test='department != null and department != \"\"'>" +
+            "  AND (course_id IN (SELECT id FROM course_base WHERE department LIKE CONCAT('%', #{department}, '%')) " +
+            "   OR teacher_id IN (SELECT id FROM teacher WHERE department LIKE CONCAT('%', #{department}, '%')))" +
+            "</if>" +
+            "<if test='startTime != null'>" +
+            "  AND r.create_time &gt;= #{startTime} " +
+            "</if>" +
+            "<if test='endTime != null'>" +
+            "  AND r.create_time &lt;= #{endTime} " +
+            "</if>" +
             "</script>")
     long countAdminReviews(@Param("role") String role,
                            @Param("scopedDepartment") String scopedDepartment,
