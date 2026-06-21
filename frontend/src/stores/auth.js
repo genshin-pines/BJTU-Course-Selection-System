@@ -67,6 +67,14 @@ export const useAuthStore = defineStore('auth', () => {
     sessionChecked.value = true
   }
 
+  async function studentRegister(email, studentNo, password, code) {
+    await request.post('/auth/register', { email, studentNo, password, code })
+  }
+
+  async function sendCode(email, studentNo) {
+    await request.post('/auth/send-code', { email, studentNo })
+  }
+
   async function adminLogin(username, password) {
     const res = await request.post('/auth/admin/login', { username, password })
     persist(res.data.token, 'ADMIN', {
@@ -124,6 +132,8 @@ export const useAuthStore = defineStore('auth', () => {
     syncFromStorage,
     verifySession,
     studentLogin,
+    studentRegister,
+    sendCode,
     adminLogin,
     logout
   }

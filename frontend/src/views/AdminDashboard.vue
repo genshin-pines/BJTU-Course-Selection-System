@@ -88,6 +88,11 @@
           <el-table-column label="发布时间" width="190">
             <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
           </el-table-column>
+          <el-table-column label="操作" width="100" fixed="right">
+            <template #default="{ row }">
+              <el-button type="danger" size="small" @click="handleDeleteAllReview(row.id)">删除</el-button>
+            </template>
+          </el-table-column>
         </el-table>
         <div class="table-pagination">
           <el-pagination
@@ -664,6 +669,16 @@ async function rejectReview(id) {
     await adminApi.rejectReview(id, reason)
     ElMessage.success('已拒绝')
     await Promise.all([loadPendingReviews(), loadAllReviewsIfActive(), loadAuditLogsIfActive()])
+  } catch (e) {}
+}
+
+async function handleDeleteAllReview(id) {
+  if (!ensureAdmin() || !canGovernContent.value) return
+  try {
+    await ElMessageBox.confirm('确认删除该评价？删除后不可恢复', '删除评价', { type: 'warning' })
+    await adminApi.deleteReview(id)
+    ElMessage.success('已删除')
+    await Promise.all([loadAllReviewsIfActive(), loadAuditLogsIfActive()])
   } catch (e) {}
 }
 

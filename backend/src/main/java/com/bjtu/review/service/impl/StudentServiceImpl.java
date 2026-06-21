@@ -2,11 +2,14 @@ package com.bjtu.review.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.bjtu.review.dto.LoginRequest;
+import com.bjtu.review.dto.RegisterRequest;
 import com.bjtu.review.entity.Student;
 import com.bjtu.review.mapper.StudentMapper;
 import com.bjtu.review.service.StudentService;
+import com.bjtu.review.service.VerifyCodeService;
 import com.bjtu.review.utils.JwtUtils;
 import com.bjtu.review.vo.LoginVO;
+import com.bjtu.review.vo.RegisterVO;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -17,10 +20,12 @@ public class StudentServiceImpl extends ServiceImpl<StudentMapper, Student> impl
 
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
+    private final VerifyCodeService verifyCodeService;
 
-    public StudentServiceImpl(PasswordEncoder passwordEncoder, JwtUtils jwtUtils) {
+    public StudentServiceImpl(PasswordEncoder passwordEncoder, JwtUtils jwtUtils, VerifyCodeService verifyCodeService) {
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
+        this.verifyCodeService = verifyCodeService;
     }
 
     @Override
@@ -56,6 +61,39 @@ public class StudentServiceImpl extends ServiceImpl<StudentMapper, Student> impl
         vo.setAnonymousId(student.getAnonymousId());
         vo.setStudentNo(student.getStudentNo());
         vo.setName(student.getName());
+        return vo;
+    }
+
+    @Override
+    public RegisterVO register(RegisterRequest request) {
+        String email = request.getEmail();
+        String studentNo = email.substring(0, email.indexOf('@'));
+
+        // 校验学号与邮箱前缀一致
+        if (!studentNo.equals(request.getStudentNo())) {
+            throw new RuntimeException("学号与邮箱前缀不匹配");
+        }
+
+        // 校验验证码
+        verifyCodeService.verifyCode(email, request.getCode());
+
+        Student existing = baseMapper.selectByStudentNo(studentNo);
+        if (existing != null) {
+            throw new RuntimeException("该学号已注册");
+        }
+
+        Student student = new Student();
+        student.setStudentNo(studentNo);
+        student.setName(studentNo);
+        student.setPassword(passwordEncoder.encode(request.getPassword()));
+        student.setAnonymousId(UUID.randomUUID().toString().replace("-", "").substring(0, 16));
+
+        baseMapper.insert(student);
+
+        RegisterVO vo = new RegisterVO();
+        vo.setStudentNo(studentNo);
+        vo.setName(student.getName());
+        vo.setAnonymousId(student.getAnonymousId());
         return vo;
     }
 

@@ -139,7 +139,7 @@ public interface ReviewMapper extends BaseMapper<Review> {
                                             @Param("tagIds") List<Long> tagIds);
 
     @Select(REVIEW_SELECT_COLUMNS +
-            "WHERE r.status IN ('PENDING_AUDIT', 'PENDING_MANUAL', 'PENDING') " +
+            "WHERE r.status IN ('PUBLISHED', 'PENDING_AUDIT', 'PENDING_MANUAL', 'PENDING') " +
             "ORDER BY r.create_time ASC")
     @Results({
             @Result(property = "id", column = "id"),
