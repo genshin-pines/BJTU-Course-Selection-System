@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface CourseMapper extends BaseMapper<Course> {
@@ -71,6 +72,10 @@ public interface CourseMapper extends BaseMapper<Course> {
             "      AND r_tag.status IN ('PUBLISHED', 'APPROVED') " +
             "      AND rt_filter.tag_id IN " +
             "      <foreach collection='tagIds' item='tagId' open='(' separator=',' close=')'>#{tagId}</foreach>" +
+            "<if test='tagMatchMode != null and tagMatchMode == \"AND\"'>" +
+            "      GROUP BY r_tag.course_instance_id " +
+            "      HAVING COUNT(DISTINCT rt_filter.tag_id) = #{tagIds.size}" +
+            "</if>" +
             "  )" +
             "</if>" +
             "ORDER BY " +
@@ -102,6 +107,7 @@ public interface CourseMapper extends BaseMapper<Course> {
                                   @Param("maxWorkloadScore") Double maxWorkloadScore,
                                   @Param("minReviewCount") Integer minReviewCount,
                                   @Param("tagIds") List<Long> tagIds,
+                                  @Param("tagMatchMode") String tagMatchMode,
                                   @Param("sortBy") String sortBy,
                                   @Param("sortOrder") String sortOrder,
                                   @Param("offset") int offset,
@@ -187,4 +193,16 @@ public interface CourseMapper extends BaseMapper<Course> {
             "review_count = (SELECT COUNT(*) FROM review WHERE course_id = #{courseId} AND status IN ('PUBLISHED', 'APPROVED')) " +
             "WHERE id = #{courseId}")
     void updateScores(Long courseId);
+
+    @Select("SELECT DISTINCT department FROM course_base WHERE department IS NOT NULL AND department != '' ORDER BY department")
+    List<String> selectDistinctDepartments();
+
+    @Select("SELECT DISTINCT t.teacher_name FROM course_instance ci " +
+            "JOIN teacher t ON t.id = ci.teacher_id " +
+            "WHERE t.teacher_name IS NOT NULL AND t.teacher_name != '' " +
+            "ORDER BY t.teacher_name")
+    List<String> selectDistinctTeachers();
+
+    @Select("SELECT DISTINCT semester FROM course_instance WHERE semester IS NOT NULL AND semester != 'UNKNOWN' ORDER BY semester DESC")
+    List<String> selectDistinctSemesters();
 }
