@@ -16,8 +16,6 @@ public class AuditLogVO {
     private Long courseInstanceId;
     private Long courseId;
     private String courseName;
-    private String semester;
-    private String className;
     private Long teacherId;
     private String teacherName;
     private String anonymousId;

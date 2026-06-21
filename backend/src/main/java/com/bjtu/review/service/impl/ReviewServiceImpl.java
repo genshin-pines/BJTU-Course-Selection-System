@@ -116,22 +116,19 @@ public class ReviewServiceImpl implements ReviewService {
         validateReviewContent(request.getContent());
 
         CourseInstance instance = resolveCourseInstance(request);
-        Long courseInstanceId = instance == null ? 0L : instance.getId();
-        Long courseId = normalizeLegacyCourseId(instance == null ? request.getCourseId() : instance.getLegacyCourseId());
-        Long teacherId = instance == null ? request.getTeacherId() : instance.getTeacherId();
-        if (teacherId == null) {
-            throw new RuntimeException("教师信息不能为空");
-        }
+        Long courseInstanceId = instance.getId();
+        Long courseBaseId = instance.getCourseBaseId();
+        Long teacherId = instance.getTeacherId();
 
         VoterRecord voterRecord = anonymityService.getOrCreateCourseReviewRecord(
-                studentId, courseId, teacherId, courseInstanceId);
-        ensureNoActiveReviewForCourse(voterRecord.getId(), courseId, teacherId, courseInstanceId);
+                studentId, courseBaseId, teacherId, courseInstanceId);
+        ensureNoActiveReviewForCourse(voterRecord.getId(), courseBaseId, teacherId, courseInstanceId);
 
         Review review = new Review();
         review.setVoterRecordId(voterRecord.getId());
         review.setAnonymousUserKey(voterRecord.getAnonymousKey());
         review.setCourseInstanceId(courseInstanceId);
-        review.setCourseId(courseId);
+        review.setCourseId(courseBaseId);
         review.setTeacherId(teacherId);
         review.setOverallScore(calculateOverallScore(request));
         review.setGradingScore(request.getGradingScore());
@@ -390,10 +387,11 @@ public class ReviewServiceImpl implements ReviewService {
         }
     }
 
-    private void ensureNoActiveReviewForCourse(Long voterRecordId, Long courseId, Long teacherId, Long courseInstanceId) {
+    private void ensureNoActiveReviewForCourse(Long voterRecordId, Long courseBaseId, Long teacherId, Long courseInstanceId) {
         LambdaQueryWrapper<Review> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Review::getCourseId, normalizeLegacyCourseId(courseId))
+        wrapper.eq(Review::getCourseId, courseBaseId)
                 .eq(Review::getTeacherId, teacherId)
+                .eq(Review::getCourseInstanceId, courseInstanceId)
                 .eq(Review::getVoterRecordId, voterRecordId)
                 .in(Review::getStatus,
                         ReviewStatus.PENDING_AUDIT.name(),
@@ -401,12 +399,8 @@ public class ReviewServiceImpl implements ReviewService {
                         ReviewStatus.PUBLISHED.name(),
                         ReviewStatus.PENDING.name(),
                         ReviewStatus.APPROVED.name());
-        Long instanceFilter = normalizeInstanceFilter(courseInstanceId);
-        if (instanceFilter != null) {
-            wrapper.eq(Review::getCourseInstanceId, instanceFilter);
-        }
         if (reviewMapper.selectCount(wrapper) > 0) {
-            throw new RuntimeException("您已经评价过该开课实例，请勿重复提交");
+            throw new RuntimeException("您已经评价过该课程，请勿重复提交");
         }
     }
 
@@ -418,25 +412,14 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     private CourseInstance resolveCourseInstance(ReviewRequest request) {
-        if (request.getCourseInstanceId() != null && request.getCourseInstanceId() > 0) {
-            CourseInstance instance = courseInstanceMapper.selectById(request.getCourseInstanceId());
-            if (instance == null) {
-                throw new RuntimeException("开课实例不存在");
-            }
-            if (request.getCourseId() != null && instance.getLegacyCourseId() != null
-                    && !instance.getLegacyCourseId().equals(request.getCourseId())) {
-                throw new RuntimeException("开课实例与课程不匹配");
-            }
-            if (request.getTeacherId() != null && instance.getTeacherId() != null
-                    && !instance.getTeacherId().equals(request.getTeacherId())) {
-                throw new RuntimeException("开课实例与教师不匹配");
-            }
-            return instance;
+        if (request.getCourseInstanceId() == null || request.getCourseInstanceId() <= 0) {
+            throw new RuntimeException("开课实例不能为空");
         }
-        if (request.getCourseId() == null || request.getTeacherId() == null) {
-            throw new RuntimeException("课程或开课实例不能为空");
+        CourseInstance instance = courseInstanceMapper.selectById(request.getCourseInstanceId());
+        if (instance == null) {
+            throw new RuntimeException("开课实例不存在");
         }
-        return courseInstanceMapper.selectByLegacyCourseId(request.getCourseId());
+        return instance;
     }
 
     private Long normalizeInstanceFilter(Long courseInstanceId) {
@@ -486,9 +469,8 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     private void refreshAggregates(Review review) {
-        Long instanceFilter = normalizeInstanceFilter(review.getCourseInstanceId());
-        if (instanceFilter != null) {
-            courseInstanceMapper.updateScores(instanceFilter);
+        if (review.getCourseInstanceId() != null && review.getCourseInstanceId() > 0) {
+            courseInstanceMapper.updateScores(review.getCourseInstanceId());
         }
         teacherMapper.updateAvgScore(review.getTeacherId());
     }

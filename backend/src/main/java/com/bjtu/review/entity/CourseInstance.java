@@ -11,10 +11,7 @@ public class CourseInstance {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long courseBaseId;
-    private Long legacyCourseId;
     private Long teacherId;
-    private String semester;
-    private String className;
     private Double avgScore;
     private Double gradingScore;
     private Double avgTeachingScore;

@@ -13,8 +13,6 @@ public class ReviewVO {
     private Long courseInstanceId;
     private Long courseId;
     private String courseName;
-    private String semester;
-    private String className;
     private Long teacherId;
     private String teacherName;
     private Integer overallScore;

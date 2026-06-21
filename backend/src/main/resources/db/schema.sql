@@ -35,27 +35,6 @@ CREATE TABLE IF NOT EXISTS teacher
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT '教师表';
 
--- 课程表
-CREATE TABLE IF NOT EXISTS course
-(
-    id               BIGINT PRIMARY KEY AUTO_INCREMENT,
-    course_code      VARCHAR(50)  NOT NULL COMMENT '课程代码',
-    course_name      VARCHAR(200) NOT NULL COMMENT '课程名称',
-    credit           INT          DEFAULT 0 COMMENT '学分',
-    department       VARCHAR(100) COMMENT '开课学院',
-    teacher_id       BIGINT COMMENT '授课教师ID',
-    avg_score         DOUBLE       DEFAULT 0 COMMENT '平均综合评分',
-    grading_score     DOUBLE       DEFAULT 0 COMMENT '平均给分评分',
-    avg_teaching_score DOUBLE     DEFAULT 0 COMMENT '平均授课质量评分',
-    avg_workload_score DOUBLE     DEFAULT 0 COMMENT '平均作业轻松度评分',
-    review_count     INT          DEFAULT 0 COMMENT '评价数量',
-    INDEX idx_course_name (course_name),
-    INDEX idx_course_code (course_code),
-    INDEX idx_department (department),
-    INDEX idx_teacher_id (teacher_id)
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4 COMMENT '课程表';
-
 CREATE TABLE IF NOT EXISTS course_base
 (
     id          BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -73,33 +52,17 @@ CREATE TABLE IF NOT EXISTS course_instance
 (
     id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
     course_base_id      BIGINT NOT NULL COMMENT 'course base id',
-    legacy_course_id    BIGINT COMMENT 'legacy course id',
     teacher_id          BIGINT NOT NULL COMMENT 'teacher id',
-    semester            VARCHAR(50) DEFAULT 'UNKNOWN' COMMENT 'semester',
-    class_name          VARCHAR(100) COMMENT 'class name',
     avg_score           DOUBLE DEFAULT 0 COMMENT 'average overall score',
     grading_score       DOUBLE DEFAULT 0 COMMENT 'average grading score',
     avg_teaching_score  DOUBLE DEFAULT 0 COMMENT 'average teaching score',
     avg_workload_score  DOUBLE DEFAULT 0 COMMENT 'average workload score',
     review_count        INT    DEFAULT 0 COMMENT 'published review count',
-    UNIQUE KEY uk_course_instance_legacy (legacy_course_id),
+    UNIQUE KEY uk_course_instance_base_teacher (course_base_id, teacher_id),
     INDEX idx_course_instance_base (course_base_id),
-    INDEX idx_course_instance_teacher (teacher_id),
-    INDEX idx_course_instance_semester (semester)
+    INDEX idx_course_instance_teacher (teacher_id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT 'course instance';
-
-CREATE TABLE IF NOT EXISTS course_teacher_relation
-(
-    id             BIGINT PRIMARY KEY AUTO_INCREMENT,
-    course_base_id BIGINT NOT NULL COMMENT 'course base id',
-    teacher_id     BIGINT NOT NULL COMMENT 'teacher id',
-    semester       VARCHAR(50) DEFAULT 'UNKNOWN' COMMENT 'semester',
-    UNIQUE KEY uk_course_teacher_semester (course_base_id, teacher_id, semester),
-    INDEX idx_course_teacher_base (course_base_id),
-    INDEX idx_course_teacher_teacher (teacher_id)
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4 COMMENT 'course teacher relation';
 
 CREATE TABLE IF NOT EXISTS voter_record
 (
@@ -108,9 +71,9 @@ CREATE TABLE IF NOT EXISTS voter_record
     anonymous_key       VARCHAR(64) NOT NULL COMMENT 'irreversible anonymous key',
     display_name        VARCHAR(80) NOT NULL COMMENT 'anonymous display name',
     scope_type          VARCHAR(40) NOT NULL COMMENT 'anonymous scope',
-    course_id           BIGINT NOT NULL COMMENT 'legacy course id',
+    course_id           BIGINT NOT NULL COMMENT 'course base id',
     teacher_id          BIGINT NOT NULL COMMENT 'teacher id',
-    course_instance_id  BIGINT NOT NULL DEFAULT 0 COMMENT 'course instance id, 0 means legacy course scope',
+    course_instance_id  BIGINT NOT NULL COMMENT 'course instance id',
     create_time         DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'create time',
     UNIQUE KEY uk_voter_scope (student_id, scope_type, course_id, teacher_id, course_instance_id),
     UNIQUE KEY uk_voter_anonymous_key (anonymous_key),
@@ -127,7 +90,7 @@ CREATE TABLE IF NOT EXISTS review
     voter_record_id  BIGINT COMMENT 'anonymous voter record id',
     anonymous_user_key VARCHAR(64) COMMENT 'anonymous user key snapshot',
     course_instance_id BIGINT COMMENT 'course instance id',
-    course_id        BIGINT       NOT NULL COMMENT '课程ID',
+    course_id        BIGINT       NOT NULL COMMENT '课程基础ID',
     teacher_id       BIGINT       NOT NULL COMMENT '教师ID',
     overall_score    INT          NOT NULL COMMENT '综合评分 1-5（自动计算：三项平均分四舍五入）',
     grading_score    INT          NOT NULL COMMENT '给分评分 1-5',
@@ -254,7 +217,7 @@ CREATE TABLE IF NOT EXISTS admin
 -- 管理员账号（密码 123456）
 INSERT INTO admin (username, password, role, department) VALUES
     ('admin', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', 'SUPER_ADMIN', NULL),
-    ('dept_op', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', 'DEPT_OP', CONVERT(0xE8AEA1E7AE97E69CBAE4B88EE4BFA1E681AFE68A80E69CAFE5ADA6E999A2 USING utf8mb4)),
+    ('dept_op', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', 'DEPT_OP', '计算机与信息技术学院'),
     ('auditor', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', 'AUDITOR', NULL);
 
 -- 预设标签
@@ -273,9 +236,15 @@ INSERT INTO teacher (teacher_name, department) VALUES
     ('李教授', '软件学院'),
     ('张教授', '电子信息工程学院');
 
--- 示例课程
-INSERT INTO course (course_code, course_name, credit, department, teacher_id) VALUES
-    ('CST301', '数据库系统原理', 3, '计算机与信息技术学院', 1),
-    ('CST302', '操作系统', 4, '计算机与信息技术学院', 1),
-    ('SWE201', '软件工程', 3, '软件学院', 2),
-    ('EEE101', '信号与系统', 4, '电子信息工程学院', 3);
+-- 示例课程与开课实例（一师一课一实例）
+INSERT INTO course_base (course_code, course_name, credit, department) VALUES
+    ('CST301', '数据库系统原理', 3, '计算机与信息技术学院'),
+    ('CST302', '操作系统', 4, '计算机与信息技术学院'),
+    ('SWE201', '软件工程', 3, '软件学院'),
+    ('EEE101', '信号与系统', 4, '电子信息工程学院');
+
+INSERT INTO course_instance (course_base_id, teacher_id) VALUES
+    (1, 1),
+    (2, 1),
+    (3, 2),
+    (4, 3);

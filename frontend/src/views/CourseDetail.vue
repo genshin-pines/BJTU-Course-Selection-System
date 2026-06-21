@@ -31,41 +31,8 @@
         </div>
       </div>
       <div class="header-actions">
-        <el-button type="primary" :disabled="!selectedCourseInstanceId" @click="goPostReview">写评价</el-button>
+        <el-button type="primary" @click="goPostReview">写评价</el-button>
       </div>
-    </el-card>
-
-    <el-card class="instances-card" v-if="courseInstances.length">
-      <template #header>
-        <div class="instances-header">
-          <div class="section-title">开课实例</div>
-          <el-radio-group v-model="selectedCourseInstanceId" size="small" @change="loadReviews">
-            <el-radio-button :label="null">全部评价</el-radio-button>
-            <el-radio-button
-              v-for="instance in courseInstances"
-              :key="instance.id"
-              :label="instance.id"
-            >
-              {{ instance.semester }} / {{ instance.teacherName || '未分配教师' }}
-            </el-radio-button>
-          </el-radio-group>
-        </div>
-      </template>
-      <el-table :data="courseInstances" size="small">
-        <el-table-column prop="semester" label="学期" min-width="120" />
-        <el-table-column prop="teacherName" label="授课教师" min-width="120" />
-        <el-table-column prop="className" label="班级" min-width="120">
-          <template #default="{ row }">
-            {{ row.className || '未设置' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="reviewCount" label="评价数" width="90" />
-        <el-table-column label="评分" width="90">
-          <template #default="{ row }">
-            {{ row.avgScore?.toFixed(1) || '-' }}
-          </template>
-        </el-table-column>
-      </el-table>
     </el-card>
 
     <div class="reviews-section">
@@ -207,10 +174,8 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
+const instanceId = ref(Number(route.params.instanceId))
 const course = ref(null)
-const courseInstances = ref([])
-const selectedCourseInstanceId = ref(null)
-const currentCourseId = ref(Number(route.params.id))
 const reviews = ref([])
 const reviewSortBy = ref('quality')
 const selectedTagIds = ref([])
@@ -225,35 +190,8 @@ const reportForm = ref({ reason: '' })
 async function loadData() {
   loading.value = true
   try {
-    const routeInstanceId = route.query.instanceId ? Number(route.query.instanceId) : null
-    const courseRes = routeInstanceId
-      ? await courseApi.getInstanceDetail(routeInstanceId)
-      : await courseApi.getDetail(route.params.id)
+    const courseRes = await courseApi.getInstanceDetail(instanceId.value)
     course.value = courseRes.data
-    currentCourseId.value = course.value?.id || null
-    if (currentCourseId.value) {
-      const instanceRes = await courseApi.getInstances(currentCourseId.value).catch((error) => {
-        console.warn('Failed to load course instances:', error)
-        return { data: [] }
-      })
-      courseInstances.value = instanceRes.data || []
-    } else {
-      courseInstances.value = [{
-        id: course.value.courseInstanceId,
-        courseBaseId: course.value.courseBaseId,
-        legacyCourseId: null,
-        teacherId: course.value.teacherId,
-        teacherName: course.value.teacherName,
-        semester: course.value.semester,
-        className: course.value.className,
-        avgScore: course.value.avgScore,
-        gradingScore: course.value.gradingScore,
-        avgTeachingScore: course.value.avgTeachingScore,
-        avgWorkloadScore: course.value.avgWorkloadScore,
-        reviewCount: course.value.reviewCount
-      }].filter((instance) => instance.id)
-    }
-    selectedCourseInstanceId.value = routeInstanceId || course.value?.courseInstanceId || courseInstances.value[0]?.id || null
     await loadReviews()
   } catch (e) {
     console.error(e)
@@ -263,18 +201,11 @@ async function loadData() {
 }
 
 async function loadReviews() {
-  if (!currentCourseId.value && !selectedCourseInstanceId.value) {
-    reviews.value = []
-    return
-  }
-  const reviewRes = currentCourseId.value
-    ? await reviewApi.getByCourse(
-        currentCourseId.value,
-        selectedCourseInstanceId.value,
-        reviewSortBy.value,
-        selectedTagIds.value
-      )
-    : await reviewApi.getByInstance(selectedCourseInstanceId.value, reviewSortBy.value, selectedTagIds.value)
+  const reviewRes = await reviewApi.getByInstance(
+    instanceId.value,
+    reviewSortBy.value,
+    selectedTagIds.value
+  )
   reviews.value = reviewRes.data || []
   await markVoteStates()
 }
@@ -293,15 +224,10 @@ async function markVoteStates() {
   if (!valid || !authStore.isStudent || reviews.value.length === 0) {
     return
   }
-  const [likedRes, downvotedRes] = currentCourseId.value
-    ? await Promise.all([
-        reviewApi.getLikedByCourse(currentCourseId.value, selectedCourseInstanceId.value),
-        reviewApi.getDownvotedByCourse(currentCourseId.value, selectedCourseInstanceId.value)
-      ])
-    : await Promise.all([
-        reviewApi.getLikedByInstance(selectedCourseInstanceId.value),
-        reviewApi.getDownvotedByInstance(selectedCourseInstanceId.value)
-      ])
+  const [likedRes, downvotedRes] = await Promise.all([
+    reviewApi.getLikedByInstance(instanceId.value),
+    reviewApi.getDownvotedByInstance(instanceId.value)
+  ])
   const likedIds = new Set(likedRes.data || [])
   const downvotedIds = new Set(downvotedRes.data || [])
   reviews.value = reviews.value.map((review) => ({
@@ -326,21 +252,10 @@ async function ensureStudent() {
 }
 
 async function goPostReview() {
-  if (!selectedCourseInstanceId.value) {
-    ElMessage.warning('请选择开课实例')
-    return
-  }
   if (!await ensureStudent()) {
     return
   }
-  if (currentCourseId.value) {
-    router.push({
-      path: `/post-review/${currentCourseId.value}`,
-      query: { instanceId: selectedCourseInstanceId.value }
-    })
-    return
-  }
-  router.push(`/post-review/instance/${selectedCourseInstanceId.value}`)
+  router.push(`/post-review/${instanceId.value}`)
 }
 
 async function handleLike(review) {
@@ -444,23 +359,6 @@ onMounted(async () => {
 
 .course-header {
   margin-bottom: 24px;
-}
-
-.instances-card {
-  margin-bottom: 24px;
-}
-
-.instances-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.section-title {
-  font-weight: 700;
-  color: #333;
 }
 
 .header-main {

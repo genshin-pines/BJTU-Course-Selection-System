@@ -73,7 +73,8 @@ class ReviewServiceImplTest {
     @Test
     void publishReviewShouldCreatePendingAuditReviewWithVoterRecord() {
         ReviewRequest request = buildRequest();
-        when(courseInstanceMapper.selectByLegacyCourseId(10L)).thenReturn(courseInstance());
+        request.setCourseInstanceId(88L);
+        when(courseInstanceMapper.selectById(88L)).thenReturn(courseInstance());
         when(anonymityService.getOrCreateCourseReviewRecord(1L, 10L, 20L, 88L)).thenReturn(voterRecord(88L));
         when(reviewMapper.selectCount(any())).thenReturn(0L);
         doAnswer(invocation -> {
@@ -120,7 +121,8 @@ class ReviewServiceImplTest {
     @Test
     void publishReviewShouldRejectDuplicateActiveReviewForSameAnonymousRecord() {
         ReviewRequest request = buildRequest();
-        when(courseInstanceMapper.selectByLegacyCourseId(10L)).thenReturn(courseInstance());
+        request.setCourseInstanceId(88L);
+        when(courseInstanceMapper.selectById(88L)).thenReturn(courseInstance());
         when(anonymityService.getOrCreateCourseReviewRecord(1L, 10L, 20L, 88L)).thenReturn(voterRecord(88L));
         when(reviewMapper.selectCount(any())).thenReturn(1L);
 
@@ -294,10 +296,8 @@ class ReviewServiceImplTest {
     private CourseInstance courseInstance() {
         CourseInstance instance = new CourseInstance();
         instance.setId(88L);
-        instance.setCourseBaseId(77L);
-        instance.setLegacyCourseId(10L);
+        instance.setCourseBaseId(10L);
         instance.setTeacherId(20L);
-        instance.setSemester("2025-2026-1");
         return instance;
     }
 

@@ -1,80 +1,32 @@
 package com.bjtu.review.service.impl;
 
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.bjtu.review.dto.CourseSearchRequest;
-import com.bjtu.review.entity.Course;
-import com.bjtu.review.entity.CourseInstance;
 import com.bjtu.review.mapper.CourseInstanceMapper;
 import com.bjtu.review.mapper.CourseMapper;
-import com.bjtu.review.mapper.ReviewTagMapper;
-import com.bjtu.review.mapper.TeacherMapper;
 import com.bjtu.review.service.CourseService;
 import com.bjtu.review.service.PageResult;
-import com.bjtu.review.vo.CourseInstanceVO;
 import com.bjtu.review.vo.CourseVO;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 @Service
-public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> implements CourseService {
+public class CourseServiceImpl implements CourseService {
 
-    private final TeacherMapper teacherMapper;
-    private final ReviewTagMapper reviewTagMapper;
+    private final CourseMapper courseMapper;
     private final CourseInstanceMapper courseInstanceMapper;
 
-    public CourseServiceImpl(TeacherMapper teacherMapper, ReviewTagMapper reviewTagMapper,
-                             CourseInstanceMapper courseInstanceMapper) {
-        this.teacherMapper = teacherMapper;
-        this.reviewTagMapper = reviewTagMapper;
+    public CourseServiceImpl(CourseMapper courseMapper, CourseInstanceMapper courseInstanceMapper) {
+        this.courseMapper = courseMapper;
         this.courseInstanceMapper = courseInstanceMapper;
-    }
-
-    @Override
-    public CourseVO getCourseDetail(Long id) {
-        Course course = baseMapper.selectById(id);
-        if (course == null) {
-            throw new RuntimeException("Course does not exist");
-        }
-
-        CourseVO vo = new CourseVO();
-        vo.setId(course.getId());
-        vo.setCourseCode(course.getCourseCode());
-        vo.setCourseName(course.getCourseName());
-        vo.setCredit(course.getCredit());
-        vo.setDepartment(course.getDepartment());
-        vo.setTeacherId(course.getTeacherId());
-        vo.setAvgScore(course.getAvgScore());
-        vo.setGradingScore(course.getGradingScore());
-        vo.setAvgTeachingScore(course.getAvgTeachingScore());
-        vo.setAvgWorkloadScore(course.getAvgWorkloadScore());
-        vo.setReviewCount(course.getReviewCount());
-
-        if (course.getTeacherId() != null) {
-            var teacher = teacherMapper.selectById(course.getTeacherId());
-            if (teacher != null) {
-                vo.setTeacherName(teacher.getTeacherName());
-            }
-        }
-
-        CourseInstance instance = courseInstanceMapper.selectByLegacyCourseId(course.getId());
-        if (instance != null) {
-            vo.setCourseBaseId(instance.getCourseBaseId());
-            vo.setCourseInstanceId(instance.getId());
-            vo.setSemester(instance.getSemester());
-            vo.setClassName(instance.getClassName());
-        }
-
-        return vo;
     }
 
     @Override
     public CourseVO getCourseInstanceDetail(Long instanceId) {
         CourseVO vo = courseInstanceMapper.selectDetailByInstanceId(instanceId);
         if (vo == null) {
-            throw new RuntimeException("Course instance does not exist");
+            throw new RuntimeException("开课实例不存在");
         }
         return vo;
     }
@@ -84,11 +36,10 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         int page = request.getPage() == null || request.getPage() < 1 ? 1 : request.getPage();
         int size = request.getSize() == null || request.getSize() < 1 ? 10 : Math.min(request.getSize(), 50);
         int offset = (page - 1) * size;
-        List<CourseVO> courses = baseMapper.searchCourses(
+        List<CourseVO> courses = courseMapper.searchCourses(
                 request.getKeyword(),
                 request.getDepartment(),
                 request.getTeacherName(),
-                request.getSemester(),
                 request.getMinScore(),
                 request.getMaxScore(),
                 request.getMinGradingScore(),
@@ -105,11 +56,10 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 offset,
                 size
         );
-        long total = baseMapper.countSearch(
+        long total = courseMapper.countSearch(
                 request.getKeyword(),
                 request.getDepartment(),
                 request.getTeacherName(),
-                request.getSemester(),
                 request.getMinScore(),
                 request.getMaxScore(),
                 request.getMinGradingScore(),
@@ -125,24 +75,10 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
     @Override
-    public List<CourseInstanceVO> getCourseInstances(Long id) {
-        Course course = baseMapper.selectById(id);
-        if (course == null) {
-            throw new RuntimeException("Course does not exist");
-        }
-        CourseInstance instance = courseInstanceMapper.selectByLegacyCourseId(id);
-        if (instance == null) {
-            return Collections.emptyList();
-        }
-        return courseInstanceMapper.selectVOByCourseBaseId(instance.getCourseBaseId());
-    }
-
-    @Override
     public Map<String, List<String>> getFilterOptions() {
         Map<String, List<String>> options = new java.util.HashMap<>();
-        options.put("departments", baseMapper.selectDistinctDepartments());
-        options.put("teachers", baseMapper.selectDistinctTeachers());
-        options.put("semesters", baseMapper.selectDistinctSemesters());
+        options.put("departments", courseMapper.selectDistinctDepartments());
+        options.put("teachers", courseMapper.selectDistinctTeachers());
         return options;
     }
 }

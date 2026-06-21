@@ -14,8 +14,6 @@ public class CourseVO {
     private String department;
     private Long teacherId;
     private String teacherName;
-    private String semester;
-    private String className;
     private Double avgScore;
     private Double gradingScore;
     private Double avgTeachingScore;

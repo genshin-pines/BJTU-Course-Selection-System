@@ -17,18 +17,17 @@ public interface ReviewMapper extends BaseMapper<Review> {
 
     String REVIEW_SELECT_COLUMNS = "SELECT r.*, COALESCE(vr.display_name, '匿名用户') AS anonymous_id, " +
             "vr.anonymous_key AS voter_anonymous_key, " +
-            "COALESCE(c.course_name, cb.course_name) AS course_name, " +
+            "cb.course_name AS course_name, " +
             "COALESCE(ree.study_tips, r.study_tips) AS review_study_tips, " +
             "COALESCE(ree.exam_type, r.exam_type) AS review_exam_type, " +
             "ree.key_chapters AS review_key_chapters, " +
             "ree.cheat_sheet_allowed AS review_cheat_sheet_allowed, " +
-            "ci.semester, ci.class_name, t.teacher_name " +
+            "t.teacher_name " +
             "FROM review r " +
             "LEFT JOIN review_exam_exp ree ON r.id = ree.review_id " +
             "LEFT JOIN voter_record vr ON r.voter_record_id = vr.id " +
-            "LEFT JOIN course c ON r.course_id = c.id " +
             "LEFT JOIN course_instance ci ON r.course_instance_id = ci.id " +
-            "LEFT JOIN course_base cb ON ci.course_base_id = cb.id " +
+            "LEFT JOIN course_base cb ON cb.id = COALESCE(ci.course_base_id, r.course_id) " +
             "LEFT JOIN teacher t ON r.teacher_id = t.id ";
 
     String REVIEW_ORDER_BY = "ORDER BY " +
@@ -77,8 +76,6 @@ public interface ReviewMapper extends BaseMapper<Review> {
             @Result(property = "courseInstanceId", column = "course_instance_id"),
             @Result(property = "courseId", column = "course_id"),
             @Result(property = "courseName", column = "course_name"),
-            @Result(property = "semester", column = "semester"),
-            @Result(property = "className", column = "class_name"),
             @Result(property = "teacherId", column = "teacher_id"),
             @Result(property = "teacherName", column = "teacher_name"),
             @Result(property = "overallScore", column = "overall_score"),
@@ -120,8 +117,6 @@ public interface ReviewMapper extends BaseMapper<Review> {
             @Result(property = "courseInstanceId", column = "course_instance_id"),
             @Result(property = "courseId", column = "course_id"),
             @Result(property = "courseName", column = "course_name"),
-            @Result(property = "semester", column = "semester"),
-            @Result(property = "className", column = "class_name"),
             @Result(property = "teacherId", column = "teacher_id"),
             @Result(property = "teacherName", column = "teacher_name"),
             @Result(property = "overallScore", column = "overall_score"),
@@ -153,8 +148,6 @@ public interface ReviewMapper extends BaseMapper<Review> {
             @Result(property = "courseInstanceId", column = "course_instance_id"),
             @Result(property = "courseId", column = "course_id"),
             @Result(property = "courseName", column = "course_name"),
-            @Result(property = "semester", column = "semester"),
-            @Result(property = "className", column = "class_name"),
             @Result(property = "teacherId", column = "teacher_id"),
             @Result(property = "teacherName", column = "teacher_name"),
             @Result(property = "overallScore", column = "overall_score"),
