@@ -10,26 +10,34 @@ import org.apache.ibatis.annotations.Results;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
 public interface ReviewMapper extends BaseMapper<Review> {
 
-    String REVIEW_SELECT_COLUMNS = "SELECT r.*, COALESCE(vr.display_name, '匿名用户') AS anonymous_id, " +
-            "vr.anonymous_key AS voter_anonymous_key, " +
-            "COALESCE(c.course_name, cb.course_name) AS course_name, " +
-            "COALESCE(ree.study_tips, r.study_tips) AS review_study_tips, " +
-            "COALESCE(ree.exam_type, r.exam_type) AS review_exam_type, " +
-            "ree.key_chapters AS review_key_chapters, " +
-            "ree.cheat_sheet_allowed AS review_cheat_sheet_allowed, " +
-            "ci.semester, ci.class_name, t.teacher_name " +
-            "FROM review r " +
+    String REVIEW_JOIN_FROM = "FROM review r " +
             "LEFT JOIN review_exam_exp ree ON r.id = ree.review_id " +
             "LEFT JOIN voter_record vr ON r.voter_record_id = vr.id " +
             "LEFT JOIN course c ON r.course_id = c.id " +
             "LEFT JOIN course_instance ci ON r.course_instance_id = ci.id " +
             "LEFT JOIN course_base cb ON ci.course_base_id = cb.id " +
             "LEFT JOIN teacher t ON r.teacher_id = t.id ";
+
+    String REVIEW_SELECT_HEAD = "SELECT r.*, COALESCE(vr.display_name, '匿名用户') AS anonymous_id, " +
+            "vr.anonymous_key AS voter_anonymous_key, " +
+            "COALESCE(c.course_name, cb.course_name) AS course_name, " +
+            "COALESCE(ree.study_tips, r.study_tips) AS review_study_tips, " +
+            "COALESCE(ree.exam_type, r.exam_type) AS review_exam_type, " +
+            "ree.key_chapters AS review_key_chapters, " +
+            "ree.cheat_sheet_allowed AS review_cheat_sheet_allowed, " +
+            "ci.semester, ci.class_name, t.teacher_name ";
+
+    String REVIEW_SELECT_COLUMNS = REVIEW_SELECT_HEAD + REVIEW_JOIN_FROM;
+
+    String ADMIN_REVIEW_SELECT = REVIEW_SELECT_HEAD +
+            ", COALESCE(cb.department, c.department, t.department) AS department " +
+            REVIEW_JOIN_FROM;
 
     String REVIEW_ORDER_BY = "ORDER BY " +
             "<choose>" +
@@ -143,7 +151,7 @@ public interface ReviewMapper extends BaseMapper<Review> {
                                             @Param("tagIds") List<Long> tagIds);
 
     @Select(REVIEW_SELECT_COLUMNS +
-            "WHERE r.status IN ('PENDING_AUDIT', 'PENDING_MANUAL', 'PENDING') " +
+            "WHERE r.status IN ('PUBLISHED', 'PENDING_AUDIT', 'PENDING_MANUAL', 'PENDING') " +
             "ORDER BY r.create_time ASC")
     @Results({
             @Result(property = "id", column = "id"),
@@ -169,9 +177,97 @@ public interface ReviewMapper extends BaseMapper<Review> {
             @Result(property = "likeCount", column = "like_count"),
             @Result(property = "downvoteCount", column = "downvote_count"),
             @Result(property = "status", column = "status"),
+            @Result(property = "hideReason", column = "hide_reason"),
             @Result(property = "createTime", column = "create_time"),
     })
     List<ReviewVO> selectPendingReviews();
+
+    String ADMIN_REVIEW_WHERE = "<if test='role == \"DEPT_OP\" and scopedDepartment != null and scopedDepartment != \"\"'>" +
+            "  AND COALESCE(cb.department, c.department, t.department) = #{scopedDepartment} " +
+            "</if>" +
+            "<if test='status != null and status != \"\"'>" +
+            "  AND r.status = #{status} " +
+            "</if>" +
+            "<if test='courseName != null and courseName != \"\"'>" +
+            "  AND COALESCE(c.course_name, cb.course_name) LIKE CONCAT('%', #{courseName}, '%') " +
+            "</if>" +
+            "<if test='teacherName != null and teacherName != \"\"'>" +
+            "  AND t.teacher_name LIKE CONCAT('%', #{teacherName}, '%') " +
+            "</if>" +
+            "<if test='department != null and department != \"\"'>" +
+            "  AND COALESCE(cb.department, c.department, t.department) LIKE CONCAT('%', #{department}, '%') " +
+            "</if>" +
+            "<if test='startTime != null'>" +
+            "  AND r.create_time &gt;= #{startTime} " +
+            "</if>" +
+            "<if test='endTime != null'>" +
+            "  AND r.create_time &lt;= #{endTime} " +
+            "</if>";
+
+    @Select("<script>" +
+            ADMIN_REVIEW_SELECT +
+            "WHERE 1 = 1 " +
+            ADMIN_REVIEW_WHERE +
+            "ORDER BY r.create_time DESC " +
+            "LIMIT #{offset}, #{pageSize}" +
+            "</script>")
+    @Results({
+            @Result(property = "id", column = "id"),
+            @Result(property = "anonymousId", column = "anonymous_id"),
+            @Result(property = "voterRecordId", column = "voter_record_id"),
+            @Result(property = "anonymousUserKey", column = "anonymous_user_key"),
+            @Result(property = "courseInstanceId", column = "course_instance_id"),
+            @Result(property = "courseId", column = "course_id"),
+            @Result(property = "courseName", column = "course_name"),
+            @Result(property = "semester", column = "semester"),
+            @Result(property = "className", column = "class_name"),
+            @Result(property = "teacherId", column = "teacher_id"),
+            @Result(property = "teacherName", column = "teacher_name"),
+            @Result(property = "department", column = "department"),
+            @Result(property = "overallScore", column = "overall_score"),
+            @Result(property = "gradingScore", column = "grading_score"),
+            @Result(property = "teachingScore", column = "teaching_score"),
+            @Result(property = "workloadScore", column = "workload_score"),
+            @Result(property = "content", column = "content"),
+            @Result(property = "studyTips", column = "review_study_tips"),
+            @Result(property = "examType", column = "review_exam_type"),
+            @Result(property = "keyChapters", column = "review_key_chapters"),
+            @Result(property = "cheatSheetAllowed", column = "review_cheat_sheet_allowed"),
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "downvoteCount", column = "downvote_count"),
+            @Result(property = "status", column = "status"),
+            @Result(property = "hideReason", column = "hide_reason"),
+            @Result(property = "createTime", column = "create_time"),
+    })
+    List<ReviewVO> selectAdminReviews(@Param("role") String role,
+                                      @Param("scopedDepartment") String scopedDepartment,
+                                      @Param("status") String status,
+                                      @Param("courseName") String courseName,
+                                      @Param("teacherName") String teacherName,
+                                      @Param("department") String department,
+                                      @Param("startTime") LocalDateTime startTime,
+                                      @Param("endTime") LocalDateTime endTime,
+                                      @Param("offset") int offset,
+                                      @Param("pageSize") int pageSize);
+
+    @Select("<script>" +
+            "SELECT COUNT(1) " +
+            "FROM review r " +
+            "LEFT JOIN course c ON r.course_id = c.id " +
+            "LEFT JOIN course_instance ci ON r.course_instance_id = ci.id " +
+            "LEFT JOIN course_base cb ON ci.course_base_id = cb.id " +
+            "LEFT JOIN teacher t ON r.teacher_id = t.id " +
+            "WHERE 1 = 1 " +
+            ADMIN_REVIEW_WHERE +
+            "</script>")
+    long countAdminReviews(@Param("role") String role,
+                           @Param("scopedDepartment") String scopedDepartment,
+                           @Param("status") String status,
+                           @Param("courseName") String courseName,
+                           @Param("teacherName") String teacherName,
+                           @Param("department") String department,
+                           @Param("startTime") LocalDateTime startTime,
+                           @Param("endTime") LocalDateTime endTime);
 
     @Update("UPDATE review SET like_count = like_count + 1 WHERE id = #{reviewId}")
     void incrementLike(Long reviewId);
@@ -184,5 +280,76 @@ public interface ReviewMapper extends BaseMapper<Review> {
 
     @Update("UPDATE review SET downvote_count = GREATEST(downvote_count - 1, 0) WHERE id = #{reviewId}")
     void decrementDownvote(Long reviewId);
+
+    @Select(REVIEW_SELECT_COLUMNS + "WHERE r.id = #{reviewId}")
+    @Results({
+            @Result(property = "id", column = "id"),
+            @Result(property = "anonymousId", column = "anonymous_id"),
+            @Result(property = "voterRecordId", column = "voter_record_id"),
+            @Result(property = "anonymousUserKey", column = "anonymous_user_key"),
+            @Result(property = "courseInstanceId", column = "course_instance_id"),
+            @Result(property = "courseId", column = "course_id"),
+            @Result(property = "courseName", column = "course_name"),
+            @Result(property = "semester", column = "semester"),
+            @Result(property = "className", column = "class_name"),
+            @Result(property = "teacherId", column = "teacher_id"),
+            @Result(property = "teacherName", column = "teacher_name"),
+            @Result(property = "overallScore", column = "overall_score"),
+            @Result(property = "gradingScore", column = "grading_score"),
+            @Result(property = "teachingScore", column = "teaching_score"),
+            @Result(property = "workloadScore", column = "workload_score"),
+            @Result(property = "content", column = "content"),
+            @Result(property = "studyTips", column = "review_study_tips"),
+            @Result(property = "examType", column = "review_exam_type"),
+            @Result(property = "keyChapters", column = "review_key_chapters"),
+            @Result(property = "cheatSheetAllowed", column = "review_cheat_sheet_allowed"),
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "downvoteCount", column = "downvote_count"),
+            @Result(property = "status", column = "status"),
+            @Result(property = "hideReason", column = "hide_reason"),
+            @Result(property = "createTime", column = "create_time"),
+    })
+    ReviewVO selectReviewVoById(Long reviewId);
+
+    @Select("<script>" +
+            REVIEW_SELECT_COLUMNS +
+            "WHERE vr.student_id = #{studentId} " +
+            "AND r.course_id = #{courseId} " +
+            "AND r.teacher_id = #{teacherId} " +
+            "AND r.status IN ('PUBLISHED', 'APPROVED', 'HIDDEN') " +
+            "<if test='courseInstanceId != null'> AND r.course_instance_id = #{courseInstanceId} </if>" +
+            "ORDER BY r.create_time DESC LIMIT 1" +
+            "</script>")
+    @Results({
+            @Result(property = "id", column = "id"),
+            @Result(property = "anonymousId", column = "anonymous_id"),
+            @Result(property = "voterRecordId", column = "voter_record_id"),
+            @Result(property = "anonymousUserKey", column = "anonymous_user_key"),
+            @Result(property = "courseInstanceId", column = "course_instance_id"),
+            @Result(property = "courseId", column = "course_id"),
+            @Result(property = "courseName", column = "course_name"),
+            @Result(property = "semester", column = "semester"),
+            @Result(property = "className", column = "class_name"),
+            @Result(property = "teacherId", column = "teacher_id"),
+            @Result(property = "teacherName", column = "teacher_name"),
+            @Result(property = "overallScore", column = "overall_score"),
+            @Result(property = "gradingScore", column = "grading_score"),
+            @Result(property = "teachingScore", column = "teaching_score"),
+            @Result(property = "workloadScore", column = "workload_score"),
+            @Result(property = "content", column = "content"),
+            @Result(property = "studyTips", column = "review_study_tips"),
+            @Result(property = "examType", column = "review_exam_type"),
+            @Result(property = "keyChapters", column = "review_key_chapters"),
+            @Result(property = "cheatSheetAllowed", column = "review_cheat_sheet_allowed"),
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "downvoteCount", column = "downvote_count"),
+            @Result(property = "status", column = "status"),
+            @Result(property = "hideReason", column = "hide_reason"),
+            @Result(property = "createTime", column = "create_time"),
+    })
+    ReviewVO selectMyReviewForStudent(@Param("studentId") Long studentId,
+                                      @Param("courseId") Long courseId,
+                                      @Param("teacherId") Long teacherId,
+                                      @Param("courseInstanceId") Long courseInstanceId);
 
 }

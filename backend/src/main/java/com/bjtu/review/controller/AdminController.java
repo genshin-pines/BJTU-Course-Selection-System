@@ -111,6 +111,35 @@ public class AdminController {
         return Result.ok(reviewService.getPendingReviews());
     }
 
+    @GetMapping("/reviews")
+    public Result<PageResult<ReviewVO>> listReviews(Authentication auth,
+                                                    @RequestParam(required = false) String status,
+                                                    @RequestParam(required = false) String courseName,
+                                                    @RequestParam(required = false) String teacherName,
+                                                    @RequestParam(required = false) String department,
+                                                    @RequestParam(required = false)
+                                                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+                                                    LocalDateTime startTime,
+                                                    @RequestParam(required = false)
+                                                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+                                                    LocalDateTime endTime,
+                                                    @RequestParam(defaultValue = "1") Integer page,
+                                                    @RequestParam(defaultValue = "10") Integer pageSize) {
+        requireReviewViewAccess(auth);
+        Admin admin = currentAdmin(auth);
+        return Result.ok(reviewService.getAdminReviews(
+                normalizeRole(admin.getRole()),
+                textOrNull(admin.getDepartment()),
+                textOrNull(status),
+                textOrNull(courseName),
+                textOrNull(teacherName),
+                textOrNull(department),
+                startTime,
+                endTime,
+                normalizePage(page),
+                normalizePageSize(pageSize)));
+    }
+
     @PutMapping("/reviews/{id}/approve")
     public Result<?> approveReview(Authentication auth, @PathVariable Long id,
                                    @RequestBody(required = false) AdminOperationRequest request) {
@@ -535,6 +564,13 @@ public class AdminController {
         String role = adminRole(auth);
         if (!SUPER_ADMIN.equals(role) && !AUDITOR.equals(role)) {
             throw new AccessDeniedException("当前管理员无内容审核权限");
+        }
+    }
+
+    private void requireReviewViewAccess(Authentication auth) {
+        String role = adminRole(auth);
+        if (!SUPER_ADMIN.equals(role) && !DEPT_OP.equals(role)) {
+            throw new AccessDeniedException("当前管理员无评价查看权限");
         }
     }
 

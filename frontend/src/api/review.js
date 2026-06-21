@@ -40,6 +40,12 @@ export const reviewApi = {
   edit(id, data) {
     return request.put(`/review/${id}`, data)
   },
+  getMine(params) {
+    return request.get('/review/mine', { params })
+  },
+  getMineById(id) {
+    return request.get(`/review/${id}/mine`)
+  },
   delete(id) {
     return request.delete(`/review/${id}`)
   },

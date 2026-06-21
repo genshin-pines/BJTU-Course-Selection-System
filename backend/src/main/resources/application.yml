@@ -28,5 +28,5 @@ jwt:
   secret: bjtu-review-system-secret-key-2024-must-be-at-least-256-bits-long
   expiration: 86400000
 
-# 敏感词列表（逗号分隔）
-sensitive-words: 傻逼,垃圾老师,骗子,作弊
+# 敏感词库文件（classpath 路径）
+sensitive-words.file: classpath:sensitive-words.txt

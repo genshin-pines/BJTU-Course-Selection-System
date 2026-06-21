@@ -4,8 +4,11 @@ export const adminApi = {
   getPendingReviews() {
     return request.get('/admin/reviews/pending')
   },
+  getAdminReviews(params = {}) {
+    return request.get('/admin/reviews', { params })
+  },
   approveReview(id, reason) {
-    return request.put(`/admin/reviews/${id}/approve`, { reason })
+    return request.put(`/admin/reviews/${id}/approve`, reason ? { reason } : {})
   },
   rejectReview(id, reason) {
     return request.put(`/admin/reviews/${id}/reject`, { reason })

@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS review
     like_count       INT          DEFAULT 0 COMMENT '点赞数',
     downvote_count   INT          NOT NULL DEFAULT 0 COMMENT '没用数',
     status           VARCHAR(20)  DEFAULT 'PENDING_AUDIT' COMMENT '状态: PENDING_AUDIT/PENDING_MANUAL/PUBLISHED/HIDDEN/ARCHIVED',
+    hide_reason      VARCHAR(500) COMMENT '隐藏原因',
     create_time      DATETIME              DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_course_id (course_id),
     INDEX idx_teacher_id (teacher_id),

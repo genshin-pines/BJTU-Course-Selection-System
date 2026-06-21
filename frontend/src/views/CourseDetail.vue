@@ -31,9 +31,20 @@
         </div>
       </div>
       <div class="header-actions">
-        <el-button type="primary" :disabled="!selectedCourseInstanceId" @click="goPostReview">写评价</el-button>
+        <el-button type="primary" :disabled="!selectedCourseInstanceId" @click="goPostReview">
+          {{ myReview ? '修改评价' : '写评价' }}
+        </el-button>
       </div>
     </el-card>
+
+    <el-alert
+      v-if="myReview?.status === 'HIDDEN'"
+      type="warning"
+      :closable="false"
+      show-icon
+      :title="`您的评价已被隐藏${myReview.hideReason ? `（${myReview.hideReason}）` : ''}，请修改后重新提交`"
+      style="margin-bottom: 16px"
+    />
 
     <el-card class="instances-card" v-if="courseInstances.length">
       <template #header>
@@ -169,6 +180,14 @@
             <el-icon><Warning /></el-icon>
             举报
           </el-button>
+          <el-button
+            v-if="review.isOwner"
+            text
+            type="primary"
+            @click="goEditReview(review.id)"
+          >
+            修改评价
+          </el-button>
         </div>
       </el-card>
     </div>
@@ -221,6 +240,7 @@ const loading = ref(false)
 const reportVisible = ref(false)
 const currentReview = ref(null)
 const reportForm = ref({ reason: '' })
+const myReview = ref(null)
 
 async function loadData() {
   loading.value = true
@@ -276,7 +296,31 @@ async function loadReviews() {
       )
     : await reviewApi.getByInstance(selectedCourseInstanceId.value, reviewSortBy.value, selectedTagIds.value)
   reviews.value = reviewRes.data || []
-  await markVoteStates()
+  await Promise.all([markVoteStates(), loadMyReview()])
+}
+
+async function loadMyReview() {
+  myReview.value = null
+  const valid = await authStore.verifySession()
+  if (!valid || !authStore.isStudent || !selectedCourseInstanceId.value) {
+    return
+  }
+  const instance = courseInstances.value.find((item) => item.id === selectedCourseInstanceId.value)
+  const courseId = currentCourseId.value || course.value?.id
+  const teacherId = instance?.teacherId || course.value?.teacherId
+  if (!courseId || !teacherId) {
+    return
+  }
+  try {
+    const res = await reviewApi.getMine({
+      courseId,
+      courseInstanceId: selectedCourseInstanceId.value,
+      teacherId
+    })
+    myReview.value = res.data || null
+  } catch (error) {
+    myReview.value = null
+  }
 }
 
 async function loadTags() {
@@ -333,6 +377,10 @@ async function goPostReview() {
   if (!await ensureStudent()) {
     return
   }
+  if (myReview.value?.id) {
+    goEditReview(myReview.value.id)
+    return
+  }
   if (currentCourseId.value) {
     router.push({
       path: `/post-review/${currentCourseId.value}`,
@@ -341,6 +389,13 @@ async function goPostReview() {
     return
   }
   router.push(`/post-review/instance/${selectedCourseInstanceId.value}`)
+}
+
+async function goEditReview(reviewId) {
+  if (!await ensureStudent()) {
+    return
+  }
+  router.push(`/edit-review/${reviewId}`)
 }
 
 async function handleLike(review) {

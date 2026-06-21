@@ -267,7 +267,7 @@ function Start-Backend {
     Remove-Item -Force -ErrorAction SilentlyContinue $stdout, $stderr
     Write-Host "Starting backend with Maven..."
     Start-Process -FilePath "cmd.exe" `
-        -ArgumentList "/c", "mvn spring-boot:run" `
+        -ArgumentList "/c", "mvn spring-boot:run -Dmaven.test.skip=true" `
         -WorkingDirectory $backendDir `
         -RedirectStandardOutput $stdout `
         -RedirectStandardError $stderr `

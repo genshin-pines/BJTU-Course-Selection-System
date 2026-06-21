@@ -57,6 +57,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/review/instance/*/liked").hasRole("STUDENT")
                 .requestMatchers(HttpMethod.GET, "/api/review/instance/*/downvoted").hasRole("STUDENT")
                 .requestMatchers(HttpMethod.GET, "/api/review/instance/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/review/mine").hasRole("STUDENT")
+                .requestMatchers(HttpMethod.GET, "/api/review/*/mine").hasRole("STUDENT")
                 .requestMatchers(HttpMethod.GET, "/api/teacher/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/tag/**").permitAll()
                 // 学生接口

@@ -3,9 +3,11 @@ package com.bjtu.review.controller;
 import com.bjtu.review.common.Result;
 import com.bjtu.review.dto.ReviewRequest;
 import com.bjtu.review.service.ReviewService;
+import com.bjtu.review.vo.ReviewPublishResult;
 import com.bjtu.review.vo.ReviewVO;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,11 +23,14 @@ public class ReviewController {
     }
 
     @GetMapping("/course/{courseId}")
-    public Result<List<ReviewVO>> getReviewsByCourse(@PathVariable Long courseId,
+    public Result<List<ReviewVO>> getReviewsByCourse(Authentication auth,
+                                                     @PathVariable Long courseId,
                                                      @RequestParam(required = false) Long courseInstanceId,
                                                      @RequestParam(required = false) String sortBy,
                                                      @RequestParam(required = false) List<Long> tagIds) {
-        List<ReviewVO> reviews = reviewService.getReviewsByCourseId(courseId, courseInstanceId, sortBy, tagIds);
+        Long studentId = extractStudentId(auth);
+        List<ReviewVO> reviews = reviewService.getReviewsByCourseId(
+                courseId, courseInstanceId, sortBy, tagIds, studentId);
         return Result.ok(reviews);
     }
 
@@ -44,10 +49,28 @@ public class ReviewController {
     }
 
     @GetMapping("/instance/{instanceId}")
-    public Result<List<ReviewVO>> getReviewsByInstance(@PathVariable Long instanceId,
+    public Result<List<ReviewVO>> getReviewsByInstance(Authentication auth,
+                                                       @PathVariable Long instanceId,
                                                        @RequestParam(required = false) String sortBy,
                                                        @RequestParam(required = false) List<Long> tagIds) {
-        return Result.ok(reviewService.getReviewsByCourseInstanceId(instanceId, sortBy, tagIds));
+        Long studentId = extractStudentId(auth);
+        return Result.ok(reviewService.getReviewsByCourseInstanceId(instanceId, sortBy, tagIds, studentId));
+    }
+
+    @GetMapping("/mine")
+    public Result<ReviewVO> getMyReview(Authentication auth,
+                                        @RequestParam Long courseId,
+                                        @RequestParam(required = false) Long courseInstanceId,
+                                        @RequestParam Long teacherId) {
+        Long studentId = (Long) auth.getPrincipal();
+        ReviewVO review = reviewService.getMyReviewForCourse(studentId, courseId, courseInstanceId, teacherId);
+        return Result.ok(review);
+    }
+
+    @GetMapping("/{id}/mine")
+    public Result<ReviewVO> getMyReviewById(Authentication auth, @PathVariable Long id) {
+        Long studentId = (Long) auth.getPrincipal();
+        return Result.ok(reviewService.getStudentReview(studentId, id));
     }
 
     @GetMapping("/instance/{instanceId}/liked")
@@ -63,18 +86,24 @@ public class ReviewController {
     }
 
     @PostMapping
-    public Result<?> publishReview(Authentication auth, @Valid @RequestBody ReviewRequest request) {
+    public Result<ReviewPublishResult> publishReview(Authentication auth, @Valid @RequestBody ReviewRequest request) {
         Long studentId = (Long) auth.getPrincipal();
-        reviewService.publishReview(studentId, request);
-        return Result.ok();
+        ReviewPublishResult result = reviewService.publishReview(studentId, request);
+        if (result.isHidden()) {
+            return new Result<>(200, result.getMessage(), result);
+        }
+        return Result.ok(result);
     }
 
     @PutMapping("/{id}")
-    public Result<?> editReview(Authentication auth, @PathVariable Long id,
+    public Result<ReviewPublishResult> editReview(Authentication auth, @PathVariable Long id,
                                  @Valid @RequestBody ReviewRequest request) {
         Long studentId = (Long) auth.getPrincipal();
-        reviewService.editReview(studentId, id, request);
-        return Result.ok();
+        ReviewPublishResult result = reviewService.editReview(studentId, id, request);
+        if (result.isHidden()) {
+            return new Result<>(200, result.getMessage(), result);
+        }
+        return Result.ok(result);
     }
 
     @DeleteMapping("/{id}")
@@ -94,5 +123,18 @@ public class ReviewController {
     public Result<?> downvoteReview(Authentication auth, @PathVariable Long id) {
         Long studentId = (Long) auth.getPrincipal();
         return Result.ok(reviewService.toggleDownvoteReview(studentId, id));
+    }
+
+    private Long extractStudentId(Authentication auth) {
+        if (auth == null || auth.getPrincipal() == null) {
+            return null;
+        }
+        boolean isStudent = auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch("ROLE_STUDENT"::equals);
+        if (!isStudent) {
+            return null;
+        }
+        return (Long) auth.getPrincipal();
     }
 }
