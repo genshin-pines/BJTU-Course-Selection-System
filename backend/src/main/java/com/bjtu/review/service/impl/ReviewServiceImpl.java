@@ -18,18 +18,23 @@ import com.bjtu.review.mapper.ReviewVoteMapper;
 import com.bjtu.review.mapper.TeacherMapper;
 import com.bjtu.review.service.AnonymityService;
 import com.bjtu.review.service.ReviewService;
+import com.bjtu.review.service.PageResult;
 import com.bjtu.review.utils.SensitiveWordFilter;
+import com.bjtu.review.vo.ReviewPublishResult;
 import com.bjtu.review.vo.ReviewVO;
 import com.bjtu.review.vo.TagVO;
 import com.bjtu.review.vo.VoteResultVO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class ReviewServiceImpl implements ReviewService {
+
+    private static final String AUTO_HIDE_REASON = "违禁词自动拦截";
 
     private final ReviewMapper reviewMapper;
     private final ReviewTagMapper reviewTagMapper;
@@ -77,14 +82,18 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     public List<ReviewVO> getReviewsByCourseId(Long courseId, Long courseInstanceId, String sortBy, List<Long> tagIds) {
+        return getReviewsByCourseId(courseId, courseInstanceId, sortBy, tagIds, null);
+    }
+
+    @Override
+    public List<ReviewVO> getReviewsByCourseId(Long courseId, Long courseInstanceId, String sortBy,
+                                               List<Long> tagIds, Long studentId) {
         List<ReviewVO> reviews = reviewMapper.selectByCourseId(
                 courseId,
                 normalizeInstanceFilter(courseInstanceId),
                 normalizeReviewSort(sortBy),
                 normalizeTagIds(tagIds));
-        for (ReviewVO review : reviews) {
-            attachTags(review);
-        }
+        enrichReviews(reviews, studentId);
         return reviews;
     }
 
@@ -100,21 +109,23 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     public List<ReviewVO> getReviewsByCourseInstanceId(Long courseInstanceId, String sortBy, List<Long> tagIds) {
+        return getReviewsByCourseInstanceId(courseInstanceId, sortBy, tagIds, null);
+    }
+
+    @Override
+    public List<ReviewVO> getReviewsByCourseInstanceId(Long courseInstanceId, String sortBy,
+                                                      List<Long> tagIds, Long studentId) {
         List<ReviewVO> reviews = reviewMapper.selectByCourseInstanceId(
                 courseInstanceId,
                 normalizeReviewSort(sortBy),
                 normalizeTagIds(tagIds));
-        for (ReviewVO review : reviews) {
-            attachTags(review);
-        }
+        enrichReviews(reviews, studentId);
         return reviews;
     }
 
     @Override
     @Transactional
-    public void publishReview(Long studentId, ReviewRequest request) {
-        validateReviewContent(request.getContent());
-
+    public ReviewPublishResult publishReview(Long studentId, ReviewRequest request) {
         CourseInstance instance = resolveCourseInstance(request);
         Long courseInstanceId = instance.getId();
         Long courseBaseId = instance.getCourseBaseId();
@@ -122,8 +133,11 @@ public class ReviewServiceImpl implements ReviewService {
 
         VoterRecord voterRecord = anonymityService.getOrCreateCourseReviewRecord(
                 studentId, courseBaseId, teacherId, courseInstanceId);
+        removePreviousHiddenReviews(voterRecord.getId(), courseBaseId, teacherId, courseInstanceId);
         ensureNoActiveReviewForCourse(voterRecord.getId(), courseBaseId, teacherId, courseInstanceId);
 
+
+        boolean sensitive = containsSensitiveContent(request);
         Review review = new Review();
         review.setVoterRecordId(voterRecord.getId());
         review.setAnonymousUserKey(voterRecord.getAnonymousKey());
@@ -139,22 +153,36 @@ public class ReviewServiceImpl implements ReviewService {
         review.setExamType(request.getExamType());
         review.setLikeCount(0);
         review.setDownvoteCount(0);
-        review.setStatus(ReviewStatus.PENDING_AUDIT.name());
+        if (sensitive) {
+            review.setStatus(ReviewStatus.HIDDEN.name());
+            review.setHideReason(AUTO_HIDE_REASON);
+        } else {
+            review.setStatus(ReviewStatus.PUBLISHED.name());
+            review.setHideReason(null);
+        }
         reviewMapper.insert(review);
 
         saveExamExperience(review.getId(), request);
         saveTags(review.getId(), request.getTags());
+        if (!sensitive) {
+            refreshAggregates(review);
+            return ReviewPublishResult.published(review.getId());
+        }
+        return ReviewPublishResult.autoHidden(review.getId());
     }
 
     @Override
     @Transactional
-    public void editReview(Long studentId, Long reviewId, ReviewRequest request) {
+    public ReviewPublishResult editReview(Long studentId, Long reviewId, ReviewRequest request) {
         Review review = requireReview(reviewId);
         if (!canStudentOperateReview(studentId, review)) {
             throw new RuntimeException("无权修改他人评价");
         }
+        if (!isEditableStatus(review.getStatus())) {
+            throw new RuntimeException("当前评价不可修改");
+        }
 
-        validateReviewContent(request.getContent());
+        boolean sensitive = containsSensitiveContent(request);
         review.setOverallScore(calculateOverallScore(request));
         review.setGradingScore(request.getGradingScore());
         review.setTeachingScore(request.getTeachingScore());
@@ -162,13 +190,56 @@ public class ReviewServiceImpl implements ReviewService {
         review.setContent(request.getContent());
         review.setStudyTips(request.getStudyTips());
         review.setExamType(request.getExamType());
-        review.setStatus(ReviewStatus.PENDING_AUDIT.name());
+        if (sensitive) {
+            review.setStatus(ReviewStatus.HIDDEN.name());
+            review.setHideReason(AUTO_HIDE_REASON);
+        } else {
+            review.setStatus(ReviewStatus.PUBLISHED.name());
+            review.setHideReason(null);
+        }
         reviewMapper.updateById(review);
 
         saveExamExperience(reviewId, request);
         reviewTagMapper.deleteByReviewId(reviewId);
         saveTags(reviewId, request.getTags());
         refreshAggregates(review);
+        return sensitive ? ReviewPublishResult.autoHidden(reviewId) : ReviewPublishResult.republishedAfterEdit(reviewId);
+    }
+
+    @Override
+    public ReviewVO getStudentReview(Long studentId, Long reviewId) {
+        Review review = requireReview(reviewId);
+        if (!canStudentOperateReview(studentId, review)) {
+            throw new RuntimeException("无权查看他人评价");
+        }
+        if (!isEditableStatus(review.getStatus())) {
+            throw new RuntimeException("当前评价不可修改");
+        }
+        ReviewVO reviewVO = reviewMapper.selectReviewVoById(reviewId);
+        if (reviewVO == null) {
+            throw new RuntimeException("评价不存在");
+        }
+        attachTags(reviewVO);
+        reviewVO.setIsOwner(true);
+        return reviewVO;
+    }
+
+    @Override
+    public ReviewVO getMyReviewForCourse(Long studentId, Long courseId, Long courseInstanceId, Long teacherId) {
+        if (courseId == null || teacherId == null) {
+            return null;
+        }
+        ReviewVO reviewVO = reviewMapper.selectMyReviewForStudent(
+                studentId,
+                normalizeLegacyCourseId(courseId),
+                teacherId,
+                normalizeInstanceFilter(courseInstanceId));
+        if (reviewVO == null) {
+            return null;
+        }
+        attachTags(reviewVO);
+        reviewVO.setIsOwner(true);
+        return reviewVO;
     }
 
     @Override
@@ -328,10 +399,35 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     @Override
+    public PageResult<ReviewVO> getAdminReviews(String role,
+                                                String scopedDepartment,
+                                                String status,
+                                                String courseName,
+                                                String teacherName,
+                                                String department,
+                                                LocalDateTime startTime,
+                                                LocalDateTime endTime,
+                                                int page,
+                                                int pageSize) {
+        int currentPage = Math.max(page, 1);
+        int size = Math.min(Math.max(pageSize, 1), 100);
+        int offset = (currentPage - 1) * size;
+        long total = reviewMapper.countAdminReviews(
+                role, scopedDepartment, status, courseName, teacherName, department, startTime, endTime);
+        List<ReviewVO> reviews = reviewMapper.selectAdminReviews(
+                role, scopedDepartment, status, courseName, teacherName, department, startTime, endTime, offset, size);
+        for (ReviewVO review : reviews) {
+            attachTags(review);
+        }
+        return new PageResult<>(reviews, total, currentPage, size);
+    }
+
+    @Override
     @Transactional
     public void approveReview(Long adminId, Long reviewId, String reason) {
         Review review = requireReview(reviewId);
-        review.setStatus(ReviewStatus.PUBLISHED.name());
+        review.setStatus(ReviewStatus.APPROVED.name());
+        review.setHideReason(null);
         reviewMapper.updateById(review);
         writeAuditLog(adminId, reviewId, null, "APPROVE_REVIEW", defaultReason(reason, "审核通过"));
         refreshAggregates(review);
@@ -340,10 +436,14 @@ public class ReviewServiceImpl implements ReviewService {
     @Override
     @Transactional
     public void rejectReview(Long adminId, Long reviewId, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new RuntimeException("拒绝评价必须填写原因");
+        }
         Review review = requireReview(reviewId);
         review.setStatus(ReviewStatus.HIDDEN.name());
+        review.setHideReason(reason.trim());
         reviewMapper.updateById(review);
-        writeAuditLog(adminId, reviewId, null, "HIDE_REVIEW", defaultReason(reason, "审核未通过"));
+        writeAuditLog(adminId, reviewId, null, "REJECT_REVIEW", reason.trim());
         refreshAggregates(review);
     }
 
@@ -368,6 +468,23 @@ public class ReviewServiceImpl implements ReviewService {
         }).collect(Collectors.toList()));
     }
 
+    private void enrichReviews(List<ReviewVO> reviews, Long studentId) {
+        for (ReviewVO review : reviews) {
+            attachTags(review);
+            if (studentId != null && review.getVoterRecordId() != null) {
+                review.setIsOwner(anonymityService.isOwner(studentId, review.getVoterRecordId()));
+            } else {
+                review.setIsOwner(false);
+            }
+        }
+    }
+
+    private boolean isEditableStatus(String status) {
+        return ReviewStatus.PUBLISHED.name().equals(status)
+                || ReviewStatus.APPROVED.name().equals(status)
+                || ReviewStatus.HIDDEN.name().equals(status);
+    }
+
     private Review requireReview(Long reviewId) {
         Review review = reviewMapper.selectById(reviewId);
         if (review == null) {
@@ -381,9 +498,29 @@ public class ReviewServiceImpl implements ReviewService {
                 (request.getGradingScore() + request.getTeachingScore() + request.getWorkloadScore()) / 3.0);
     }
 
-    private void validateReviewContent(String content) {
-        if (sensitiveWordFilter.containsSensitiveWord(content)) {
-            throw new RuntimeException("评价内容包含敏感词，请修改后重试");
+    private boolean containsSensitiveContent(ReviewRequest request) {
+        return sensitiveWordFilter.containsSensitiveWord(
+                request.getContent(),
+                request.getStudyTips(),
+                request.getExamType(),
+                request.getKeyChapters());
+    }
+
+    private void removePreviousHiddenReviews(Long voterRecordId, Long courseId, Long teacherId, Long courseInstanceId) {
+        LambdaQueryWrapper<Review> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Review::getCourseId, normalizeLegacyCourseId(courseId))
+                .eq(Review::getTeacherId, teacherId)
+                .eq(Review::getVoterRecordId, voterRecordId)
+                .eq(Review::getStatus, ReviewStatus.HIDDEN.name());
+        Long instanceFilter = normalizeInstanceFilter(courseInstanceId);
+        if (instanceFilter != null) {
+            wrapper.eq(Review::getCourseInstanceId, instanceFilter);
+        }
+        List<Review> hiddenReviews = reviewMapper.selectList(wrapper);
+        for (Review hidden : hiddenReviews) {
+            reviewExamExpMapper.deleteByReviewId(hidden.getId());
+            reviewTagMapper.deleteByReviewId(hidden.getId());
+            reviewMapper.deleteById(hidden.getId());
         }
     }
 

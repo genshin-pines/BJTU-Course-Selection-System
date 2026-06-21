@@ -15,6 +15,7 @@ import com.bjtu.review.mapper.ReviewVoteMapper;
 import com.bjtu.review.mapper.TeacherMapper;
 import com.bjtu.review.service.AnonymityService;
 import com.bjtu.review.utils.SensitiveWordFilter;
+import com.bjtu.review.vo.ReviewPublishResult;
 import com.bjtu.review.vo.VoteResultVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,11 +23,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.argThat;
@@ -61,9 +62,8 @@ class ReviewServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        sensitiveWordFilter = new SensitiveWordFilter();
-        ReflectionTestUtils.setField(sensitiveWordFilter, "sensitiveWordsConfig", "badword");
-        sensitiveWordFilter.init();
+        sensitiveWordFilter = new SensitiveWordFilter(new org.springframework.core.io.DefaultResourceLoader());
+        sensitiveWordFilter.initFromWords(List.of("badword"));
         reviewService = new ReviewServiceImpl(
                 reviewMapper, reviewTagMapper, reviewVoteMapper,
                 teacherMapper, sensitiveWordFilter,
@@ -71,12 +71,13 @@ class ReviewServiceImplTest {
     }
 
     @Test
-    void publishReviewShouldCreatePendingAuditReviewWithVoterRecord() {
+    void publishReviewShouldCreatePublishedReviewWithVoterRecord() {
         ReviewRequest request = buildRequest();
         request.setCourseInstanceId(88L);
         when(courseInstanceMapper.selectById(88L)).thenReturn(courseInstance());
         when(anonymityService.getOrCreateCourseReviewRecord(1L, 10L, 20L, 88L)).thenReturn(voterRecord(88L));
         when(reviewMapper.selectCount(any())).thenReturn(0L);
+        when(reviewMapper.selectList(any())).thenReturn(List.of());
         doAnswer(invocation -> {
             Review review = invocation.getArgument(0);
             review.setId(99L);
@@ -88,7 +89,7 @@ class ReviewServiceImplTest {
         ArgumentCaptor<Review> captor = ArgumentCaptor.forClass(Review.class);
         verify(reviewMapper).insert(captor.capture());
         Review saved = captor.getValue();
-        assertEquals(ReviewStatus.PENDING_AUDIT.name(), saved.getStatus());
+        assertEquals(ReviewStatus.PUBLISHED.name(), saved.getStatus());
         assertEquals(30L, saved.getVoterRecordId());
         assertEquals("anon-key", saved.getAnonymousUserKey());
         assertEquals(88L, saved.getCourseInstanceId());
@@ -96,6 +97,32 @@ class ReviewServiceImplTest {
         verify(reviewExamExpMapper).upsertBasicExperience(99L, "closed book", "study tips", "chapter 1-3", true);
         verify(reviewTagMapper).insertTag(99L, 1L);
         verify(reviewTagMapper).insertTag(99L, 2L);
+        verify(courseInstanceMapper).updateScores(88L);
+        verify(teacherMapper).updateAvgScore(20L);
+    }
+
+    @Test
+    void publishReviewShouldAutoHideWhenSensitiveWordDetected() {
+        ReviewRequest request = buildRequest();
+        request.setContent("contains badword here");
+        when(courseInstanceMapper.selectByLegacyCourseId(10L)).thenReturn(courseInstance());
+        when(anonymityService.getOrCreateCourseReviewRecord(1L, 10L, 20L, 88L)).thenReturn(voterRecord(88L));
+        when(reviewMapper.selectCount(any())).thenReturn(0L);
+        when(reviewMapper.selectList(any())).thenReturn(List.of());
+        doAnswer(invocation -> {
+            Review review = invocation.getArgument(0);
+            review.setId(100L);
+            return 1;
+        }).when(reviewMapper).insert(any(Review.class));
+
+        ReviewPublishResult result = reviewService.publishReview(1L, request);
+
+        assertTrue(result.isHidden());
+        ArgumentCaptor<Review> captor = ArgumentCaptor.forClass(Review.class);
+        verify(reviewMapper).insert(captor.capture());
+        Review saved = captor.getValue();
+        assertEquals(ReviewStatus.HIDDEN.name(), saved.getStatus());
+        assertEquals("违禁词自动拦截", saved.getHideReason());
         verifyNoInteractions(teacherMapper);
     }
 
@@ -108,6 +135,7 @@ class ReviewServiceImplTest {
         when(courseInstanceMapper.selectById(88L)).thenReturn(courseInstance());
         when(anonymityService.getOrCreateCourseReviewRecord(1L, 10L, 20L, 88L)).thenReturn(voterRecord(88L));
         when(reviewMapper.selectCount(any())).thenReturn(0L);
+        when(reviewMapper.selectList(any())).thenReturn(List.of());
 
         reviewService.publishReview(1L, request);
 
@@ -132,24 +160,24 @@ class ReviewServiceImplTest {
     }
 
     @Test
-    void approveReviewShouldPublishAndRefreshAggregates() {
+    void approveReviewShouldMarkApprovedAndRefreshAggregates() {
         Review review = new Review();
         review.setId(8L);
         review.setCourseId(10L);
         review.setCourseInstanceId(88L);
         review.setTeacherId(20L);
-        review.setStatus(ReviewStatus.PENDING_AUDIT.name());
+        review.setStatus(ReviewStatus.PUBLISHED.name());
         when(reviewMapper.selectById(8L)).thenReturn(review);
 
-        reviewService.approveReview(7L, 8L, "ok");
+        reviewService.approveReview(7L, 8L, null);
 
-        assertEquals(ReviewStatus.PUBLISHED.name(), review.getStatus());
+        assertEquals(ReviewStatus.APPROVED.name(), review.getStatus());
         verify(reviewMapper).updateById(review);
         verify(auditLogMapper).insert(argThat(log ->
                 log.getAdminId().equals(7L)
                         && log.getReviewId().equals(8L)
                         && "APPROVE_REVIEW".equals(log.getOperateType())
-                        && "ok".equals(log.getReason())));
+                        && "审核通过".equals(log.getReason())));
         verify(courseInstanceMapper).updateScores(88L);
         verify(teacherMapper).updateAvgScore(20L);
     }
@@ -166,9 +194,11 @@ class ReviewServiceImplTest {
         when(reviewMapper.selectById(3L)).thenReturn(existing);
         when(anonymityService.isOwner(1L, 30L)).thenReturn(true);
 
-        reviewService.editReview(1L, 3L, buildRequest());
+        ReviewPublishResult result = reviewService.editReview(1L, 3L, buildRequest());
 
-        assertEquals(ReviewStatus.PENDING_AUDIT.name(), existing.getStatus());
+        assertEquals(ReviewStatus.PUBLISHED.name(), existing.getStatus());
+        assertEquals(false, result.isHidden());
+        assertEquals("评价已更新，将重新进入审核", result.getMessage());
         verify(reviewMapper).updateById(existing);
         verify(reviewExamExpMapper).upsertBasicExperience(3L, "closed book", "study tips", "chapter 1-3", true);
         verify(reviewTagMapper).deleteByReviewId(3L);

@@ -12,9 +12,9 @@ public enum ReviewStatus {
     HIDDEN("违规隐藏"),
     ARCHIVED("学期归档"),
     // Legacy statuses kept for backward compatibility with old seeded data.
-    PENDING("待审核(旧)"),
-    APPROVED("已通过(旧)"),
-    REJECTED("已拒绝(旧)");
+    PENDING("待审核"),
+    APPROVED("审核通过"),
+    REJECTED("已拒绝");
 
     private final String description;
 
@@ -27,6 +27,10 @@ public enum ReviewStatus {
     }
 
     public static Set<String> pendingStatuses() {
-        return Set.of(PENDING_AUDIT.name(), PENDING_MANUAL.name(), PENDING.name());
+        return Set.of(
+                PUBLISHED.name(),
+                PENDING_AUDIT.name(),
+                PENDING_MANUAL.name(),
+                PENDING.name());
     }
 }

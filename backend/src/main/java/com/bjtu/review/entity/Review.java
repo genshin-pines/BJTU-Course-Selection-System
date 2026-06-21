@@ -24,6 +24,7 @@ public class Review {
     private Integer likeCount;
     private Integer downvoteCount;
     private String status;
+    private String hideReason;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }

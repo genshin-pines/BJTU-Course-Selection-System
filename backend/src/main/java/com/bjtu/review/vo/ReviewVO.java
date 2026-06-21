@@ -27,6 +27,8 @@ public class ReviewVO {
     private Integer likeCount;
     private Integer downvoteCount;
     private String status;
+    private String hideReason;
+    private String department;
     private LocalDateTime createTime;
     private List<TagVO> tags;
     private Boolean isOwner;

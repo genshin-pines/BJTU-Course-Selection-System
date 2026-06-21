@@ -18,6 +18,11 @@
           </el-table-column>
           <el-table-column prop="content" label="评价内容" min-width="220" show-overflow-tooltip />
           <el-table-column prop="anonymousId" label="用户" width="140" />
+          <el-table-column label="状态" width="130">
+            <template #default="{ row }">
+              <el-tag :type="reviewStatusType(row.status)">{{ reviewStatusText(row.status) }}</el-tag>
+            </template>
+          </el-table-column>
           <el-table-column label="操作" width="200" fixed="right">
             <template #default="{ row }">
               <el-button type="success" size="small" @click="approveReview(row.id)">通过</el-button>
@@ -26,6 +31,75 @@
           </el-table-column>
         </el-table>
         <el-empty v-if="!reviewLoading && pendingReviews.length === 0" description="暂无待审核评价" />
+      </el-tab-pane>
+
+      <el-tab-pane v-if="canViewAllReviews" label="全部评价" name="allReviews">
+        <div class="section-toolbar search-bar">
+          <el-select v-model="allReviewFilter.status" placeholder="状态" style="width: 160px" clearable>
+            <el-option
+              v-for="item in reviewStatusOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+          <el-input v-model="allReviewFilter.courseName" placeholder="课程名称" style="width: 180px" clearable
+            @keyup.enter="searchAllReviews" />
+          <el-input v-model="allReviewFilter.teacherName" placeholder="教师姓名" style="width: 160px" clearable
+            @keyup.enter="searchAllReviews" />
+          <el-input v-model="allReviewFilter.department" placeholder="学院" style="width: 160px" clearable
+            @keyup.enter="searchAllReviews" />
+          <el-date-picker
+            v-model="allReviewFilter.timeRange"
+            type="datetimerange"
+            range-separator="至"
+            start-placeholder="开始时间"
+            end-placeholder="结束时间"
+            format="YYYY-MM-DD HH:mm"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 360px"
+          />
+          <el-button type="primary" @click="searchAllReviews">搜索</el-button>
+          <el-button @click="resetAllReviewFilter">重置</el-button>
+        </div>
+        <el-table :data="allReviews" v-loading="allReviewLoading" border>
+          <el-table-column prop="id" label="ID" width="70" />
+          <el-table-column prop="courseName" label="课程" width="180" />
+          <el-table-column prop="teacherName" label="教师" width="120" />
+          <el-table-column prop="department" label="学院" width="160">
+            <template #default="{ row }">{{ row.department || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="开课实例" width="190">
+            <template #default="{ row }">{{ formatInstance(row) }}</template>
+          </el-table-column>
+          <el-table-column label="评分" width="120">
+            <template #default="{ row }">{{ row.overallScore ?? '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="content" label="评价内容" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="anonymousId" label="用户" width="140" />
+          <el-table-column label="状态" width="130">
+            <template #default="{ row }">
+              <el-tag :type="reviewStatusType(row.status)">{{ reviewStatusText(row.status) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="hideReason" label="隐藏原因" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.hideReason || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="发布时间" width="190">
+            <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
+          </el-table-column>
+        </el-table>
+        <div class="table-pagination">
+          <el-pagination
+            v-model:current-page="allReviewPage.current"
+            v-model:page-size="allReviewPage.size"
+            :page-sizes="pageSizeOptions"
+            :total="allReviewPage.total"
+            layout="total, sizes, prev, pager, next"
+            @size-change="handleAllReviewSizeChange"
+            @current-change="handleAllReviewPageChange"
+          />
+        </div>
       </el-tab-pane>
 
       <el-tab-pane v-if="canGovernContent" label="举报管理" name="reports">
@@ -425,6 +499,10 @@ const dataTab = ref('courses')
 
 const pendingReviews = ref([])
 const reviewLoading = ref(false)
+const allReviews = ref([])
+const allReviewLoading = ref(false)
+const allReviewFilter = ref(blankAllReviewFilter())
+const allReviewPage = ref(blankPageState())
 const reports = ref([])
 const reportLoading = ref(false)
 const tags = ref([])
@@ -472,6 +550,7 @@ const adminRoleOptions = [
 
 const auditOperateOptions = [
   'APPROVE_REVIEW',
+  'REJECT_REVIEW',
   'HIDE_REVIEW',
   'DELETE_REVIEW',
   'RESOLVE_REPORT',
@@ -494,8 +573,15 @@ const auditOperateOptions = [
   'DELETE_ADMIN'
 ].map(value => ({ value, label: operateTypeText(value) }))
 
+const reviewStatusOptions = [
+  { value: 'PUBLISHED', label: '已发布待审核' },
+  { value: 'APPROVED', label: '审核通过' },
+  { value: 'HIDDEN', label: '已隐藏' }
+]
+
 const adminRole = computed(() => authStore.adminRole || 'SUPER_ADMIN')
 const canGovernContent = computed(() => ['SUPER_ADMIN', 'AUDITOR'].includes(adminRole.value))
+const canViewAllReviews = computed(() => ['SUPER_ADMIN', 'DEPT_OP'].includes(adminRole.value))
 const canMaintainData = computed(() => ['SUPER_ADMIN', 'DEPT_OP'].includes(adminRole.value))
 const canManageAdmins = computed(() => adminRole.value === 'SUPER_ADMIN')
 const canViewAuditLogs = computed(() => ['SUPER_ADMIN', 'DEPT_OP', 'AUDITOR'].includes(adminRole.value))
@@ -512,6 +598,7 @@ function ensureAdmin() {
 
 function firstAccessibleTab() {
   if (canGovernContent.value) return 'reviews'
+  if (canViewAllReviews.value) return 'allReviews'
   if (canMaintainData.value) return 'tags'
   if (canManageAdmins.value) return 'accounts'
   if (canViewAuditLogs.value) return 'auditLogs'
@@ -521,6 +608,7 @@ function firstAccessibleTab() {
 function ensureAccessibleTab() {
   const allowed = {
     reviews: canGovernContent.value,
+    allReviews: canViewAllReviews.value,
     reports: canGovernContent.value,
     tags: canMaintainData.value,
     dataMaintenance: canMaintainData.value,
@@ -558,10 +646,14 @@ async function loadPendingReviews() {
 async function approveReview(id) {
   if (!ensureAdmin() || !canGovernContent.value) return
   try {
-    const reason = await askReason('审核通过', '请填写通过该评价的原因')
-    await adminApi.approveReview(id, reason)
+    await ElMessageBox.confirm('确认通过该评价？', '审核通过', {
+      type: 'success',
+      confirmButtonText: '确认通过',
+      cancelButtonText: '取消'
+    })
+    await adminApi.approveReview(id)
     ElMessage.success('已通过')
-    await Promise.all([loadPendingReviews(), loadAuditLogsIfActive()])
+    await Promise.all([loadPendingReviews(), loadAllReviewsIfActive(), loadAuditLogsIfActive()])
   } catch (e) {}
 }
 
@@ -571,8 +663,61 @@ async function rejectReview(id) {
     const reason = await askReason('审核拒绝', '请填写拒绝该评价的原因')
     await adminApi.rejectReview(id, reason)
     ElMessage.success('已拒绝')
-    await Promise.all([loadPendingReviews(), loadAuditLogsIfActive()])
+    await Promise.all([loadPendingReviews(), loadAllReviewsIfActive(), loadAuditLogsIfActive()])
   } catch (e) {}
+}
+
+function buildAllReviewQueryParams() {
+  const params = {
+    page: allReviewPage.value.current,
+    pageSize: allReviewPage.value.size
+  }
+  if (allReviewFilter.value.status) params.status = allReviewFilter.value.status
+  if (allReviewFilter.value.courseName?.trim()) params.courseName = allReviewFilter.value.courseName.trim()
+  if (allReviewFilter.value.teacherName?.trim()) params.teacherName = allReviewFilter.value.teacherName.trim()
+  if (allReviewFilter.value.department?.trim()) params.department = allReviewFilter.value.department.trim()
+  if (allReviewFilter.value.timeRange?.length === 2) {
+    params.startTime = allReviewFilter.value.timeRange[0]
+    params.endTime = allReviewFilter.value.timeRange[1]
+  }
+  return params
+}
+
+async function loadAllReviews() {
+  if (!ensureAdmin() || !canViewAllReviews.value) return
+  allReviewLoading.value = true
+  try {
+    const res = await adminApi.getAdminReviews(buildAllReviewQueryParams())
+    applyPageResult(res.data, allReviews, allReviewPage)
+  } finally {
+    allReviewLoading.value = false
+  }
+}
+
+function searchAllReviews() {
+  allReviewPage.value.current = 1
+  loadAllReviews()
+}
+
+function resetAllReviewFilter() {
+  allReviewFilter.value = blankAllReviewFilter()
+  allReviewPage.value.current = 1
+  loadAllReviews()
+}
+
+function handleAllReviewPageChange(page) {
+  allReviewPage.value.current = page
+  loadAllReviews()
+}
+
+function handleAllReviewSizeChange(size) {
+  allReviewPage.value.size = size
+  allReviewPage.value.current = 1
+  loadAllReviews()
+}
+
+function loadAllReviewsIfActive() {
+  return activeTab.value === 'allReviews' ? loadAllReviews() : Promise.resolve()
 }
 
 async function loadReports() {
@@ -1026,6 +1171,7 @@ function loadAuditLogsIfActive() {
 
 function loadActiveTab() {
   if (activeTab.value === 'reviews') loadPendingReviews()
+  if (activeTab.value === 'allReviews') loadAllReviews()
   if (activeTab.value === 'reports') loadReports()
   if (activeTab.value === 'tags') loadTags()
   if (activeTab.value === 'dataMaintenance') loadDataMaintenance()
@@ -1055,6 +1201,16 @@ function blankAuditFilter() {
     operatorId: '',
     reviewId: '',
     courseName: '',
+    timeRange: []
+  }
+}
+
+function blankAllReviewFilter() {
+  return {
+    status: '',
+    courseName: '',
+    teacherName: '',
+    department: '',
     timeRange: []
   }
 }
@@ -1109,6 +1265,29 @@ function reportStatusText(status) {
   if (status === 'RESOLVED') return '已处理'
   if (status === 'DISMISSED') return '已驳回'
   return status || '-'
+}
+
+function reviewStatusType(status) {
+  if (status === 'PUBLISHED' || status === 'PENDING_AUDIT' || status === 'PENDING_MANUAL' || status === 'PENDING') {
+    return 'warning'
+  }
+  if (status === 'APPROVED') return 'success'
+  if (status === 'HIDDEN' || status === 'REJECTED') return 'danger'
+  return 'info'
+}
+
+function reviewStatusText(status) {
+  const map = {
+    PUBLISHED: '已发布待审核',
+    APPROVED: '审核通过',
+    HIDDEN: '已隐藏',
+    PENDING_AUDIT: '待审核',
+    PENDING_MANUAL: '待人工复核',
+    PENDING: '待审核',
+    REJECTED: '已拒绝',
+    ARCHIVED: '已归档'
+  }
+  return map[status] || status || '-'
 }
 
 function operateTypeText(type) {

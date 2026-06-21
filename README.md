@@ -26,7 +26,8 @@
 # 后端（端口 8889）
 cd backend
 mvn clean package -DskipTests
-java -jar target/review-system-1.0.0.jar --server.port=8889
+java -jar target/review-system-1.0.0.jar 
+mvn spring-boot:run
 
 # 前端（端口 8081）
 cd frontend

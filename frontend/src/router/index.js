@@ -31,6 +31,12 @@ const routes = [
     meta: { title: '发布评价', requiresStudent: true }
   },
   {
+    path: '/edit-review/:reviewId',
+    name: 'EditReview',
+    component: () => import('@/views/PostReview.vue'),
+    meta: { title: '修改评价', requiresStudent: true }
+  },
+  {
     path: '/admin/login',
     name: 'AdminLogin',
     component: () => import('@/views/AdminLogin.vue'),

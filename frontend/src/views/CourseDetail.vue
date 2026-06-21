@@ -31,9 +31,21 @@
         </div>
       </div>
       <div class="header-actions">
-        <el-button type="primary" @click="goPostReview">写评价</el-button>
+        <el-button type="primary" @click="goPostReview">
+          {{ myReview ? '修改评价' : '写评价' }}
+        </el-button>
       </div>
     </el-card>
+
+    <el-alert
+      v-if="myReview?.status === 'HIDDEN'"
+      type="warning"
+      :closable="false"
+      show-icon
+      :title="`您的评价已被隐藏${myReview.hideReason ? `（${myReview.hideReason}）` : ''}，请修改后重新提交`"
+      style="margin-bottom: 16px"
+    />
+
 
     <div class="reviews-section">
       <div class="reviews-toolbar">
@@ -136,6 +148,14 @@
             <el-icon><Warning /></el-icon>
             举报
           </el-button>
+          <el-button
+            v-if="review.isOwner"
+            text
+            type="primary"
+            @click="goEditReview(review.id)"
+          >
+            修改评价
+          </el-button>
         </div>
       </el-card>
     </div>
@@ -186,6 +206,7 @@ const loading = ref(false)
 const reportVisible = ref(false)
 const currentReview = ref(null)
 const reportForm = ref({ reason: '' })
+const myReview = ref(null)
 
 async function loadData() {
   loading.value = true
@@ -207,7 +228,28 @@ async function loadReviews() {
     selectedTagIds.value
   )
   reviews.value = reviewRes.data || []
-  await markVoteStates()
+  await Promise.all([markVoteStates(), loadMyReview()])
+}
+
+async function loadMyReview() {
+  myReview.value = null
+  const valid = await authStore.verifySession()
+  if (!valid || !authStore.isStudent) {
+    return
+  }
+  if (!course.value) {
+    return
+  }
+  try {
+    const res = await reviewApi.getMine({
+      courseId: course.value.id,
+      courseInstanceId: instanceId.value,
+      teacherId: course.value.teacherId
+    })
+    myReview.value = res.data || null
+  } catch (error) {
+    myReview.value = null
+  }
 }
 
 async function loadTags() {
@@ -255,7 +297,18 @@ async function goPostReview() {
   if (!await ensureStudent()) {
     return
   }
+  if (myReview.value?.id) {
+    goEditReview(myReview.value.id)
+    return
+  }
   router.push(`/post-review/${instanceId.value}`)
+}
+
+async function goEditReview(reviewId) {
+  if (!await ensureStudent()) {
+    return
+  }
+  router.push(`/edit-review/${reviewId}`)
 }
 
 async function handleLike(review) {
