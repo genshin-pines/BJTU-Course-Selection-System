@@ -2,7 +2,7 @@
   <div class="home-container">
     <section class="search-section">
       <h1>BJTU 课程评价系统</h1>
-      <p class="subtitle">查看课程评价，按评分、标签和学期快速筛选课程</p>
+      <p class="subtitle">查看课程评价，按评分和标签快速筛选课程</p>
       <el-input
         v-model="keyword"
         size="large"
@@ -150,14 +150,6 @@
               <span>{{ course.department }}</span>
               <el-divider direction="vertical" />
               <span>{{ course.credit }} 学分</span>
-              <template v-if="course.semester">
-                <el-divider direction="vertical" />
-                <span>{{ course.semester }}</span>
-              </template>
-              <template v-if="course.className">
-                <el-divider direction="vertical" />
-                <span>{{ course.className }}</span>
-              </template>
             </p>
           </div>
 
@@ -220,7 +212,6 @@ const keyword = ref('')
 const filterCategory = ref('') // 当前选择的筛选类别
 const department = ref('')
 const teacherName = ref('')
-const semester = ref('')
 const scorePreset = ref('')
 const dimensionFilter = ref('')
 const minReviewCount = ref(null)
@@ -231,7 +222,6 @@ const tagMatchMode = ref('OR') // 'OR' 或 'AND'
 const tags = ref([])
 const departments = ref([])
 const teachers = ref([])
-const semesters = ref([])
 const courses = ref([])
 const loading = ref(false)
 const page = ref(1)
@@ -272,7 +262,6 @@ function onFilterCategoryChange() {
 
 function applyFilters() {
   searchFromFirstPage()
-  showApplyButton.value = false
 }
 
 function applyScorePreset() {
@@ -319,7 +308,6 @@ function resetFilters() {
   keyword.value = ''
   department.value = ''
   teacherName.value = ''
-  semester.value = ''
   scorePreset.value = ''
   dimensionFilter.value = ''
   minReviewCount.value = null
@@ -344,7 +332,6 @@ function buildSearchParams() {
     keyword: keyword.value || undefined,
     department: department.value || undefined,
     teacherName: teacherName.value || undefined,
-    semester: semester.value || undefined,
     minScore: minScore.value ?? undefined,
     maxScore: maxScore.value ?? undefined,
     minGradingScore: minGradingScore.value ?? undefined,
@@ -392,7 +379,6 @@ async function loadFilterOptions() {
     if (data.code === 200) {
       departments.value = data.data.departments || []
       teachers.value = data.data.teachers || []
-      semesters.value = data.data.semesters || []
     }
   } catch (e) {
     console.error('Failed to load filter options:', e)
@@ -406,9 +392,6 @@ function updateActiveFilters() {
   }
   if (teacherName.value) {
     activeFilters.value.push({ name: `教师: ${teacherName.value}`, key: 'teacherName', value: teacherName.value })
-  }
-  if (semester.value) {
-    activeFilters.value.push({ name: `学期: ${semester.value}`, key: 'semester', value: semester.value })
   }
   if (minScore.value !== null) {
     const label = maxScore.value !== null ? `${minScore.value}-${maxScore.value}分` : `${minScore.value}+分`
@@ -443,9 +426,6 @@ function removeFilter(key) {
     case 'teacherName':
       teacherName.value = ''
       break
-    case 'semester':
-      semester.value = ''
-      break
     case 'minScore':
       minScore.value = null
       maxScore.value = null
@@ -475,10 +455,7 @@ function removeFilter(key) {
 }
 
 function goCourseDetail(course) {
-  router.push({
-    path: `/course/${course.id || course.courseBaseId}`,
-    query: course.courseInstanceId ? { instanceId: course.courseInstanceId } : {}
-  })
+  router.push(`/course/instance/${course.courseInstanceId || course.id}`)
 }
 
 function formatScore(score) {

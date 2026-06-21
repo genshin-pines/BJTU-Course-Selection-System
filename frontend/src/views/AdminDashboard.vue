@@ -175,8 +175,6 @@
                 @keyup.enter="searchInstances" />
               <el-input v-model="instanceFilter.teacherName" placeholder="教师姓名" style="width: 160px" clearable
                 @keyup.enter="searchInstances" />
-              <el-input v-model="instanceFilter.semester" placeholder="学期" style="width: 150px" clearable
-                @keyup.enter="searchInstances" />
               <el-button type="primary" @click="searchInstances">搜索</el-button>
               <el-button @click="resetInstanceFilter">重置</el-button>
             </div>
@@ -197,8 +195,6 @@
                   :value="teacher.id"
                 />
               </el-select>
-              <el-input v-model="instanceForm.semester" placeholder="学期，如 2026春" style="width: 150px" />
-              <el-input v-model="instanceForm.className" placeholder="班级" style="width: 160px" />
               <el-button type="primary" @click="handleSaveInstance">
                 {{ instanceForm.id ? '保存实例' : '新增实例' }}
               </el-button>
@@ -207,13 +203,11 @@
             <el-table :data="adminInstances" v-loading="instanceLoading" border>
               <el-table-column prop="id" label="ID" width="80" />
               <el-table-column label="课程" min-width="220">
-                <template #default="{ row }">{{ courseName(row.courseBaseId) }}</template>
+                <template #default="{ row }">{{ formatInstanceCourse(row) }}</template>
               </el-table-column>
               <el-table-column label="教师" width="140">
-                <template #default="{ row }">{{ teacherName(row.teacherId) }}</template>
+                <template #default="{ row }">{{ row.teacherName || teacherName(row.teacherId) }}</template>
               </el-table-column>
-              <el-table-column prop="semester" label="学期" width="130" />
-              <el-table-column prop="className" label="班级" width="150" />
               <el-table-column prop="reviewCount" label="评价数" width="90" />
               <el-table-column label="操作" width="170" fixed="right">
                 <template #default="{ row }">
@@ -462,7 +456,7 @@ const instancePage = ref(blankPageState())
 // 筛选条件
 const courseFilter = ref({ courseCode: '', courseName: '', department: '' })
 const teacherFilter = ref({ teacherName: '', department: '' })
-const instanceFilter = ref({ courseName: '', teacherName: '', semester: '' })
+const instanceFilter = ref({ courseName: '', teacherName: '' })
 
 // 数据导入
 const uploadFile = ref(null)
@@ -909,7 +903,6 @@ async function loadAdminInstances() {
     }
     if (instanceFilter.value.courseName) params.courseName = instanceFilter.value.courseName
     if (instanceFilter.value.teacherName) params.teacherName = instanceFilter.value.teacherName
-    if (instanceFilter.value.semester) params.semester = instanceFilter.value.semester
     const res = await adminApi.getAdminCourseInstances(params)
     applyPageResult(res.data, adminInstances, instancePage)
     if (adminInstances.value.length === 0 && instancePage.value.current > 1 && instancePage.value.total > 0) {
@@ -927,7 +920,7 @@ function searchInstances() {
 }
 
 function resetInstanceFilter() {
-  instanceFilter.value = { courseName: '', teacherName: '', semester: '' }
+  instanceFilter.value = { courseName: '', teacherName: '' }
   instancePage.value.current = 1
   loadAdminInstances()
 }
@@ -947,9 +940,7 @@ async function handleSaveInstance() {
   if (!ensureAdmin() || !canMaintainData.value) return
   const payload = {
     courseBaseId: instanceForm.value.courseBaseId,
-    teacherId: instanceForm.value.teacherId,
-    semester: instanceForm.value.semester.trim(),
-    className: instanceForm.value.className.trim()
+    teacherId: instanceForm.value.teacherId
   }
   if (!payload.courseBaseId || !payload.teacherId) {
     ElMessage.warning('请选择课程和教师')
@@ -970,16 +961,14 @@ function editInstance(row) {
   instanceForm.value = {
     id: row.id,
     courseBaseId: row.courseBaseId,
-    teacherId: row.teacherId,
-    semester: row.semester || '',
-    className: row.className || ''
+    teacherId: row.teacherId
   }
 }
 
 async function handleDeleteInstance(row) {
   if (!ensureAdmin() || !canMaintainData.value) return
   try {
-    await ElMessageBox.confirm(`确认删除开课实例 ${courseName(row.courseBaseId)} / ${row.semester || '-'}？`, '删除开课实例', {
+    await ElMessageBox.confirm(`确认删除开课实例 ${formatInstanceCourse(row)} / ${row.teacherName || teacherName(row.teacherId)}？`, '删除开课实例', {
       type: 'warning'
     })
     await adminApi.deleteAdminCourseInstance(row.id)
@@ -1053,7 +1042,7 @@ function blankTeacherForm() {
 }
 
 function blankInstanceForm() {
-  return { id: null, courseBaseId: null, teacherId: null, semester: '', className: '' }
+  return { id: null, courseBaseId: null, teacherId: null }
 }
 
 function blankPageState() {
@@ -1087,6 +1076,14 @@ function resetTeacherForm() {
 
 function resetInstanceForm() {
   instanceForm.value = blankInstanceForm()
+}
+
+function formatInstanceCourse(row) {
+  if (row.courseName) {
+    const code = row.courseCode ? `${row.courseCode} ` : ''
+    return `${code}${row.courseName}`.trim()
+  }
+  return courseName(row.courseBaseId)
 }
 
 function courseName(courseBaseId) {
@@ -1154,8 +1151,6 @@ function roleText(role) {
 function formatInstance(row) {
   const parts = []
   if (row.courseInstanceId) parts.push(`#${row.courseInstanceId}`)
-  if (row.semester) parts.push(row.semester)
-  if (row.className) parts.push(row.className)
   return parts.length ? parts.join(' / ') : '-'
 }
 

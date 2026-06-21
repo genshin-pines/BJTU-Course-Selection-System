@@ -195,10 +195,8 @@ function Test-DatabaseSchema {
     $requiredTables = @(
         "student",
         "teacher",
-        "course",
         "course_base",
         "course_instance",
-        "course_teacher_relation",
         "voter_record",
         "review",
         "review_exam_exp",
@@ -245,13 +243,8 @@ function Test-DatabaseSchema {
             Write-Host "  - $item"
         }
         Write-Host ""
-        Write-Host "Recommended migration order:"
-        Write-Host "  1. backend/src/main/resources/db/schema.sql            (new database only)"
-        Write-Host "  2. backend/src/main/resources/db/migration_session_id.sql"
-        Write-Host "  3. backend/src/main/resources/db/migration_core_model_anonymity.sql"
-        Write-Host "  4. backend/src/main/resources/db/migration_backfill_voter_record.sql"
-        Write-Host "  5. backend/src/main/resources/db/migration_review_exam_exp.sql"
-        Write-Host "  6. backend/src/main/resources/db/migration_review_downvote.sql"
+        Write-Host "Recommended init:"
+        Write-Host "  backend/src/main/resources/db/schema.sql"
         Write-Host ""
         Write-Host "See backend/src/main/resources/db/README.md for details."
         throw "Database schema check failed."

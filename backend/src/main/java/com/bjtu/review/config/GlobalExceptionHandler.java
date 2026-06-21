@@ -23,8 +23,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RuntimeException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<?> handleRuntimeException(RuntimeException e) {
-        log.error("业务异常: {}", e.getMessage());
-        return Result.fail(e.getMessage());
+        String message = resolveMessage(e);
+        log.error("业务异常: {}", message, e);
+        return Result.fail(message);
+    }
+
+    private String resolveMessage(Throwable e) {
+        Throwable current = e;
+        while (current != null) {
+            if (current.getMessage() != null && !current.getMessage().isBlank()) {
+                return current.getMessage();
+            }
+            current = current.getCause();
+        }
+        return "请求失败，请稍后重试";
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

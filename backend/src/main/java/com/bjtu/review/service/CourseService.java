@@ -1,18 +1,13 @@
 package com.bjtu.review.service;
 
-import com.baomidou.mybatisplus.extension.service.IService;
-import com.bjtu.review.entity.Course;
-import com.bjtu.review.vo.CourseInstanceVO;
-import com.bjtu.review.vo.CourseVO;
 import com.bjtu.review.dto.CourseSearchRequest;
+import com.bjtu.review.vo.CourseVO;
 
 import java.util.List;
 import java.util.Map;
 
-public interface CourseService extends IService<Course> {
-    CourseVO getCourseDetail(Long id);
+public interface CourseService {
     CourseVO getCourseInstanceDetail(Long instanceId);
     PageResult<CourseVO> searchCourses(CourseSearchRequest request);
-    List<CourseInstanceVO> getCourseInstances(Long id);
     Map<String, List<String>> getFilterOptions();
 }

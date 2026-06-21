@@ -12,7 +12,6 @@ import com.bjtu.review.dto.AdminTeacherRequest;
 import com.bjtu.review.dto.AdminUpdateRoleRequest;
 import com.bjtu.review.entity.Admin;
 import com.bjtu.review.entity.AuditLog;
-import com.bjtu.review.entity.Course;
 import com.bjtu.review.entity.CourseBase;
 import com.bjtu.review.entity.CourseInstance;
 import com.bjtu.review.entity.Review;
@@ -22,7 +21,6 @@ import com.bjtu.review.mapper.AdminMapper;
 import com.bjtu.review.mapper.AuditLogMapper;
 import com.bjtu.review.mapper.CourseBaseMapper;
 import com.bjtu.review.mapper.CourseInstanceMapper;
-import com.bjtu.review.mapper.CourseMapper;
 import com.bjtu.review.mapper.ReviewMapper;
 import com.bjtu.review.mapper.TeacherMapper;
 import com.bjtu.review.service.ReportService;
@@ -35,6 +33,7 @@ import cn.hutool.core.text.csv.CsvRow;
 import cn.hutool.core.text.csv.CsvUtil;
 import com.bjtu.review.vo.AdminAccountVO;
 import com.bjtu.review.vo.AuditLogVO;
+import com.bjtu.review.vo.CourseInstanceVO;
 import com.bjtu.review.vo.ImportResultVO;
 import com.bjtu.review.vo.ReportVO;
 import com.bjtu.review.vo.ReviewVO;
@@ -63,7 +62,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -84,14 +86,12 @@ public class AdminController {
     private final TeacherMapper teacherMapper;
     private final CourseInstanceMapper courseInstanceMapper;
     private final ReviewMapper reviewMapper;
-    private final CourseMapper courseMapper;
 
     public AdminController(ReviewService reviewService, ReportService reportService,
                            TagService tagService, AuditLogMapper auditLogMapper,
                            AdminMapper adminMapper, PasswordEncoder passwordEncoder,
                            CourseBaseMapper courseBaseMapper, TeacherMapper teacherMapper,
-                           CourseInstanceMapper courseInstanceMapper, ReviewMapper reviewMapper,
-                           CourseMapper courseMapper) {
+                           CourseInstanceMapper courseInstanceMapper, ReviewMapper reviewMapper) {
         this.reviewService = reviewService;
         this.reportService = reportService;
         this.tagService = tagService;
@@ -102,7 +102,6 @@ public class AdminController {
         this.teacherMapper = teacherMapper;
         this.courseInstanceMapper = courseInstanceMapper;
         this.reviewMapper = reviewMapper;
-        this.courseMapper = courseMapper;
     }
 
     @GetMapping("/reviews/pending")
@@ -319,11 +318,10 @@ public class AdminController {
     }
 
     @GetMapping("/course-instances")
-    public Result<PageResult<CourseInstance>> listCourseInstances(Authentication auth,
+    public Result<PageResult<CourseInstanceVO>> listCourseInstances(Authentication auth,
                                                                  @RequestParam(required = false) Long courseBaseId,
                                                                  @RequestParam(required = false) String courseName,
                                                                  @RequestParam(required = false) String teacherName,
-                                                                 @RequestParam(required = false) String semester,
                                                                  @RequestParam(defaultValue = "1") Integer page,
                                                                  @RequestParam(defaultValue = "10") Integer pageSize) {
         requireDataMaintenance(auth);
@@ -351,12 +349,9 @@ public class AdminController {
             wrapper.in(CourseInstance::getTeacherId, teacherIds);
         }
 
-        if (semester != null && !semester.isBlank()) {
-            wrapper.like(CourseInstance::getSemester, semester.trim());
-        }
-
-        wrapper.orderByDesc(CourseInstance::getSemester).orderByAsc(CourseInstance::getId);
-        return Result.ok(pageQuery(courseInstanceMapper, wrapper, page, pageSize));
+        wrapper.orderByDesc(CourseInstance::getId);
+        PageResult<CourseInstance> pageResult = pageQuery(courseInstanceMapper, wrapper, page, pageSize);
+        return Result.ok(enrichCourseInstances(pageResult));
     }
 
     @PostMapping("/course-instances")
@@ -437,7 +432,7 @@ public class AdminController {
         response.setCharacterEncoding("UTF-8");
         PrintWriter writer = response.getWriter();
         writer.write('\uFEFF'); // UTF-8 BOM for Excel compatibility
-        writer.println("courseCode,courseName,credit,department,teacherName,teacherDepartment,semester,className");
+        writer.println("courseCode,courseName,credit,department,teacherName,teacherDepartment");
         writer.flush();
     }
 
@@ -616,10 +611,18 @@ public class AdminController {
         Long teacherId = requireId(request.getTeacherId(), "教师不能为空");
         existingCourse(courseBaseId);
         existingTeacher(teacherId);
+        Long currentId = instance.getId();
+        LambdaQueryWrapper<CourseInstance> duplicateQuery = new LambdaQueryWrapper<CourseInstance>()
+                .eq(CourseInstance::getCourseBaseId, courseBaseId)
+                .eq(CourseInstance::getTeacherId, teacherId);
+        if (currentId != null) {
+            duplicateQuery.ne(CourseInstance::getId, currentId);
+        }
+        if (courseInstanceMapper.selectCount(duplicateQuery) > 0) {
+            throw new RuntimeException("该课程与教师的开课实例已存在");
+        }
         instance.setCourseBaseId(courseBaseId);
         instance.setTeacherId(teacherId);
-        instance.setSemester(textOrDefault(request.getSemester(), "UNKNOWN"));
-        instance.setClassName(textOrNull(request.getClassName()));
     }
 
     private void ensureCourseCodeAvailable(String courseCode, Long currentId) {
@@ -678,6 +681,61 @@ public class AdminController {
             return defaultValue;
         }
         return value.trim();
+    }
+
+    private PageResult<CourseInstanceVO> enrichCourseInstances(PageResult<CourseInstance> pageResult) {
+        List<CourseInstance> instances = pageResult.getRecords();
+        if (instances == null || instances.isEmpty()) {
+            return new PageResult<>(List.of(), pageResult.getTotal(), pageResult.getPage(), pageResult.getSize());
+        }
+
+        Set<Long> courseBaseIds = instances.stream()
+                .map(CourseInstance::getCourseBaseId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<Long> teacherIds = instances.stream()
+                .map(CourseInstance::getTeacherId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<Long, CourseBase> courseMap = courseBaseIds.isEmpty()
+                ? Map.of()
+                : courseBaseMapper.selectBatchIds(courseBaseIds).stream()
+                .collect(Collectors.toMap(CourseBase::getId, Function.identity(), (left, right) -> left));
+        Map<Long, Teacher> teacherMap = teacherIds.isEmpty()
+                ? Map.of()
+                : teacherMapper.selectBatchIds(teacherIds).stream()
+                .collect(Collectors.toMap(Teacher::getId, Function.identity(), (left, right) -> left));
+
+        List<CourseInstanceVO> records = instances.stream()
+                .map(instance -> toCourseInstanceVO(instance, courseMap, teacherMap))
+                .toList();
+        return new PageResult<>(records, pageResult.getTotal(), pageResult.getPage(), pageResult.getSize());
+    }
+
+    private CourseInstanceVO toCourseInstanceVO(CourseInstance instance,
+                                                Map<Long, CourseBase> courseMap,
+                                                Map<Long, Teacher> teacherMap) {
+        CourseInstanceVO vo = new CourseInstanceVO();
+        vo.setId(instance.getId());
+        vo.setCourseBaseId(instance.getCourseBaseId());
+        vo.setTeacherId(instance.getTeacherId());
+        vo.setAvgScore(instance.getAvgScore());
+        vo.setGradingScore(instance.getGradingScore());
+        vo.setAvgTeachingScore(instance.getAvgTeachingScore());
+        vo.setAvgWorkloadScore(instance.getAvgWorkloadScore());
+        vo.setReviewCount(instance.getReviewCount());
+
+        CourseBase course = courseMap.get(instance.getCourseBaseId());
+        if (course != null) {
+            vo.setCourseCode(course.getCourseCode());
+            vo.setCourseName(course.getCourseName());
+        }
+        Teacher teacher = teacherMap.get(instance.getTeacherId());
+        if (teacher != null) {
+            vo.setTeacherName(teacher.getTeacherName());
+        }
+        return vo;
     }
 
     private <T> PageResult<T> pageQuery(BaseMapper<T> mapper, LambdaQueryWrapper<T> wrapper,
@@ -741,10 +799,8 @@ public class AdminController {
 
         // 本批次内去重缓存
         Map<String, Long> batchCourseBaseCache = new java.util.HashMap<>();
-        Map<String, Long> batchLegacyCourseCache = new java.util.HashMap<>();
         Map<String, Long> batchTeacherCache = new java.util.HashMap<>();
         Set<String> batchInstanceCache = new java.util.HashSet<>();
-        Set<Long> linkedLegacyCourseIds = new java.util.HashSet<>();
 
         int dataStart = 1;
         for (int rowIdx = dataStart; rowIdx < rows.size(); rowIdx++) {
@@ -756,9 +812,8 @@ public class AdminController {
 
             try {
                 processRow(row, rowIdx + 1, colMap,
-                        batchCourseBaseCache, batchLegacyCourseCache,
+                        batchCourseBaseCache,
                         batchTeacherCache, batchInstanceCache,
-                        linkedLegacyCourseIds,
                         result);
             } catch (Exception e) {
                 result.setFailCount(result.getFailCount() + 1);
@@ -775,7 +830,7 @@ public class AdminController {
     private void validateImportHeaders(Map<String, Integer> colMap) {
         List<String> requiredHeaders = List.of(
                 "courseCode", "courseName", "credit", "department",
-                "teacherName", "teacherDepartment", "semester", "className");
+                "teacherName", "teacherDepartment");
         List<String> missingHeaders = requiredHeaders.stream()
                 .filter(header -> !colMap.containsKey(header))
                 .toList();
@@ -795,10 +850,8 @@ public class AdminController {
 
     private void processRow(CsvRow row, int displayRow, Map<String, Integer> colMap,
                             Map<String, Long> batchCourseBaseCache,
-                            Map<String, Long> batchLegacyCourseCache,
                             Map<String, Long> batchTeacherCache,
                             Set<String> batchInstanceCache,
-                            Set<Long> linkedLegacyCourseIds,
                             ImportResultVO result) {
         String courseCode = getField(row, colMap, "courseCode");
         String courseName = getField(row, colMap, "courseName");
@@ -806,22 +859,16 @@ public class AdminController {
         String department = getField(row, colMap, "department");
         String teacherName = getField(row, colMap, "teacherName");
         String teacherDepartment = getField(row, colMap, "teacherDepartment");
-        String semester = getField(row, colMap, "semester");
-        String className = getField(row, colMap, "className");
 
-        // 必填校验
         if (courseCode.isBlank()) throw new RuntimeException("课程代码不能为空");
         if (courseName.isBlank()) throw new RuntimeException("课程名称不能为空");
 
-        // 标准化
         courseCode = courseCode.trim().toUpperCase();
         courseName = courseName.trim();
         department = textOrNull(department);
         teacherName = textOrNull(teacherName);
         teacherDepartment = textOrNull(teacherDepartment);
         if (teacherDepartment == null) teacherDepartment = department;
-        semester = textOrDefault(semester, "UNKNOWN");
-        className = textOrNull(className);
         int credit = 0;
         if (creditStr != null && !creditStr.isBlank()) {
             try {
@@ -831,7 +878,6 @@ public class AdminController {
             }
         }
 
-        // 查找或创建 CourseBase
         Long courseBaseId = batchCourseBaseCache.get(courseCode);
         boolean changed = false;
         if (courseBaseId == null) {
@@ -854,7 +900,6 @@ public class AdminController {
             batchCourseBaseCache.put(courseCode, courseBaseId);
         }
 
-        // 查找或创建 Teacher
         Long teacherId = null;
         if (teacherName != null) {
             String teacherKey = teacherName + "||" + (teacherDepartment != null ? teacherDepartment : "");
@@ -883,34 +928,6 @@ public class AdminController {
             }
         }
 
-        // 查找或创建对应的旧 course 表记录（前端首页展示需要）
-        Long legacyCourseId = batchLegacyCourseCache.get(courseCode);
-        if (legacyCourseId == null) {
-            Course legacy = courseMapper.selectOne(
-                    new LambdaQueryWrapper<Course>()
-                            .eq(Course::getCourseCode, courseCode)
-                            .last("LIMIT 1"));
-            if (legacy != null) {
-                legacyCourseId = legacy.getId();
-            } else {
-                Course c = new Course();
-                c.setCourseCode(courseCode);
-                c.setCourseName(courseName);
-                c.setCredit(credit);
-                c.setDepartment(department);
-                c.setTeacherId(teacherId);
-                c.setAvgScore(0.0);
-                c.setGradingScore(0.0);
-                c.setAvgTeachingScore(0.0);
-                c.setAvgWorkloadScore(0.0);
-                c.setReviewCount(0);
-                courseMapper.insert(c);
-                legacyCourseId = c.getId();
-                changed = true;
-            }
-            batchLegacyCourseCache.put(courseCode, legacyCourseId);
-        }
-
         if (teacherId == null) {
             if (changed) {
                 result.setSuccessCount(result.getSuccessCount() + 1);
@@ -920,39 +937,22 @@ public class AdminController {
             return;
         }
 
-        // 去重检查 CourseInstance
-        String instanceKey = courseBaseId + "_" + teacherId + "_"
-                + (semester != null ? semester : "NULL") + "_"
-                + (className != null ? className : "NULL");
+        String instanceKey = courseBaseId + "_" + teacherId;
         if (batchInstanceCache.contains(instanceKey)) {
             result.setSkipCount(result.getSkipCount() + 1);
             return;
         }
-        LambdaQueryWrapper<CourseInstance> instanceQuery = new LambdaQueryWrapper<CourseInstance>()
+        if (courseInstanceMapper.selectCount(new LambdaQueryWrapper<CourseInstance>()
                 .eq(CourseInstance::getCourseBaseId, courseBaseId)
-                .eq(CourseInstance::getSemester, semester)
-                .eq(CourseInstance::getTeacherId, teacherId);
-        if (className != null) {
-            instanceQuery.eq(CourseInstance::getClassName, className);
-        } else {
-            instanceQuery.isNull(CourseInstance::getClassName);
-        }
-        if (courseInstanceMapper.selectCount(instanceQuery) > 0) {
+                .eq(CourseInstance::getTeacherId, teacherId)) > 0) {
             batchInstanceCache.add(instanceKey);
             result.setSkipCount(result.getSkipCount() + 1);
             return;
         }
 
-        // 创建 CourseInstance（legacy_course_id 有唯一约束，每 course_base 只设第一个）
         CourseInstance ci = new CourseInstance();
         ci.setCourseBaseId(courseBaseId);
-        if (!linkedLegacyCourseIds.contains(legacyCourseId) && !hasInstanceLinkedToLegacyCourse(legacyCourseId)) {
-            ci.setLegacyCourseId(legacyCourseId);
-            linkedLegacyCourseIds.add(legacyCourseId);
-        }
         ci.setTeacherId(teacherId);
-        ci.setSemester(semester);
-        ci.setClassName(className);
         ci.setAvgScore(0.0);
         ci.setGradingScore(0.0);
         ci.setAvgTeachingScore(0.0);
@@ -961,14 +961,6 @@ public class AdminController {
         courseInstanceMapper.insert(ci);
         batchInstanceCache.add(instanceKey);
         result.setSuccessCount(result.getSuccessCount() + 1);
-    }
-
-    private boolean hasInstanceLinkedToLegacyCourse(Long legacyCourseId) {
-        if (legacyCourseId == null) {
-            return false;
-        }
-        return courseInstanceMapper.selectCount(new LambdaQueryWrapper<CourseInstance>()
-                .eq(CourseInstance::getLegacyCourseId, legacyCourseId)) > 0;
     }
 
     private String getField(CsvRow row, Map<String, Integer> colMap, String colName) {

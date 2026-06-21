@@ -9,7 +9,6 @@ public class CourseSearchRequest {
     private String keyword;
     private String department;
     private String teacherName;
-    private String semester;
     private Double minScore;
     private Double maxScore;
     private Double minGradingScore;

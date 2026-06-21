@@ -10,23 +10,12 @@
         </div>
       </template>
 
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-        <el-form-item v-if="courseInstances.length" label="开课实例" prop="courseInstanceId">
-          <el-select
-            v-model="form.courseInstanceId"
-            placeholder="请选择本次评价对应的开课实例"
-            style="width: 100%"
-            @change="handleInstanceChange"
-          >
-            <el-option
-              v-for="instance in courseInstances"
-              :key="instance.id"
-              :label="formatInstance(instance)"
-              :value="instance.id"
-            />
-          </el-select>
-        </el-form-item>
+      <div v-if="courseInfo" class="course-summary">
+        <strong>{{ courseInfo.courseName }}</strong>
+        <span class="course-meta">{{ courseInfo.courseCode }} · {{ courseInfo.teacherName || '未分配教师' }}</span>
+      </div>
 
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="给分情况" prop="gradingScore">
           <el-rate
             v-model="form.gradingScore"
@@ -123,15 +112,14 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 const route = useRoute()
 const router = useRouter()
 
+const instanceId = Number(route.params.instanceId)
 const formRef = ref(null)
 const submitting = ref(false)
 const availableTags = ref([])
-const courseInstances = ref([])
+const courseInfo = ref(null)
 
 const form = reactive({
-  courseId: route.params.courseId ? Number(route.params.courseId) : null,
-  courseInstanceId: null,
-  teacherId: null,
+  courseInstanceId: instanceId,
   gradingScore: 0,
   teachingScore: 0,
   workloadScore: 0,
@@ -144,16 +132,6 @@ const form = reactive({
 })
 
 const rules = {
-  courseInstanceId: [{
-    trigger: 'change',
-    validator: (_, value, callback) => {
-      if (courseInstances.value.length > 0 && !value) {
-        callback(new Error('请选择开课实例'))
-        return
-      }
-      callback()
-    }
-  }],
   gradingScore: [{ required: true, trigger: 'change', validator: validateScore }],
   teachingScore: [{ required: true, trigger: 'change', validator: validateScore }],
   workloadScore: [{ required: true, trigger: 'change', validator: validateScore }],
@@ -170,50 +148,15 @@ function validateScore(_, value, callback) {
 
 async function loadData() {
   try {
-    const routeInstanceId = route.params.instanceId
-      ? Number(route.params.instanceId)
-      : (route.query.instanceId ? Number(route.query.instanceId) : null)
-    const courseRequest = routeInstanceId
-      ? courseApi.getInstanceDetail(routeInstanceId)
-      : courseApi.getDetail(route.params.courseId)
     const [courseRes, tagRes] = await Promise.all([
-      courseRequest,
+      courseApi.getInstanceDetail(instanceId),
       tagApi.getAll()
     ])
-    form.courseId = courseRes.data.id || null
-    form.teacherId = courseRes.data.teacherId
-    if (form.courseId) {
-      const instanceRes = await courseApi.getInstances(form.courseId).catch(() => ({ data: [] }))
-      courseInstances.value = instanceRes.data || []
-    } else if (courseRes.data.courseInstanceId) {
-      courseInstances.value = [{
-        id: courseRes.data.courseInstanceId,
-        teacherId: courseRes.data.teacherId,
-        teacherName: courseRes.data.teacherName,
-        semester: courseRes.data.semester,
-        className: courseRes.data.className
-      }]
-    }
-    const defaultInstanceId = routeInstanceId || courseRes.data.courseInstanceId || courseInstances.value[0]?.id || null
-    if (defaultInstanceId) {
-      form.courseInstanceId = defaultInstanceId
-      handleInstanceChange(defaultInstanceId)
-    }
+    courseInfo.value = courseRes.data
     availableTags.value = tagRes.data || []
   } catch (error) {
     console.error(error)
   }
-}
-
-function handleInstanceChange(instanceId) {
-  const instance = courseInstances.value.find((item) => item.id === instanceId)
-  if (instance?.teacherId) {
-    form.teacherId = instance.teacherId
-  }
-}
-
-function formatInstance(instance) {
-  return `${instance.semester || '未知学期'} / ${instance.teacherName || '未分配教师'} / ${instance.className || '未设置班级'}`
 }
 
 async function handleSubmit() {
@@ -224,14 +167,7 @@ async function handleSubmit() {
   try {
     await reviewApi.publish({ ...form })
     ElMessage.success('评价提交成功，等待审核')
-    if (route.params.courseId) {
-      router.push(`/course/${route.params.courseId}`)
-      return
-    }
-    router.push({
-      path: `/course/${form.courseId || 0}`,
-      query: { instanceId: form.courseInstanceId }
-    })
+    router.push(`/course/instance/${instanceId}`)
   } catch (error) {
     // Global interceptor handles request errors.
   } finally {
@@ -254,5 +190,20 @@ onMounted(loadData)
   gap: 16px;
   font-size: 18px;
   font-weight: 600;
+}
+
+.course-summary {
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background: #f5f8ff;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.course-meta {
+  color: #666;
+  font-size: 14px;
 }
 </style>

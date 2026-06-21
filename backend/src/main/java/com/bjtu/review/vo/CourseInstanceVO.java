@@ -6,11 +6,10 @@ import lombok.Data;
 public class CourseInstanceVO {
     private Long id;
     private Long courseBaseId;
-    private Long legacyCourseId;
     private Long teacherId;
     private String teacherName;
-    private String semester;
-    private String className;
+    private String courseCode;
+    private String courseName;
     private Double avgScore;
     private Double gradingScore;
     private Double avgTeachingScore;

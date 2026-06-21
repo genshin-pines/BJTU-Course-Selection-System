@@ -19,19 +19,13 @@ const routes = [
     meta: { title: '课程搜索' }
   },
   {
-    path: '/course/:id',
+    path: '/course/instance/:instanceId',
     name: 'CourseDetail',
     component: () => import('@/views/CourseDetail.vue'),
     meta: { title: '课程详情' }
   },
   {
-    path: '/post-review/instance/:instanceId',
-    name: 'PostReviewByInstance',
-    component: () => import('@/views/PostReview.vue'),
-    meta: { title: '发布评价', requiresStudent: true }
-  },
-  {
-    path: '/post-review/:courseId',
+    path: '/post-review/:instanceId',
     name: 'PostReview',
     component: () => import('@/views/PostReview.vue'),
     meta: { title: '发布评价', requiresStudent: true }
