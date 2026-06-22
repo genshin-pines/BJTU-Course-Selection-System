@@ -7,9 +7,9 @@ spring:
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/bjtu_review?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-    username: root
-    password: 'zhx114514@JY'
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/bjtu_review?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:123456}
 
   servlet:
     multipart:
@@ -17,10 +17,10 @@ spring:
       max-request-size: 10MB
 
   mail:
-    host: smtp.qq.com
-    port: 587
-    username: your-email@qq.com
-    password: your-auth-code
+    host: ${SPRING_MAIL_HOST:smtp.qq.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:your-email@qq.com}
+    password: ${SPRING_MAIL_PASSWORD:your-auth-code}
     properties:
       mail:
         smtp:
@@ -38,8 +38,8 @@ mybatis-plus:
       id-type: auto
 
 jwt:
-  secret: bjtu-review-system-secret-key-2024-must-be-at-least-256-bits-long
-  expiration: 86400000
+  secret: ${JWT_SECRET:bjtu-review-system-secret-key-2024-must-be-at-least-256-bits-long}
+  expiration: ${JWT_EXPIRATION:86400000}
 
 # 敏感词库文件（classpath 路径）
 sensitive-words.file: classpath:sensitive-words.txt

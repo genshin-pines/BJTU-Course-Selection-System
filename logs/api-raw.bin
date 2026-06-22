@@ -1,1 +1,0 @@
-{"code":200,"message":"success","data":{"records":[{"id":1,"courseBaseId":1,"courseInstanceId":1,"courseCode":"CST301","courseName":"数据库系统原理","credit":3,"department":"计算机与信息技术学院","teacherId":1,"teacherName":"王教授","avgScore":0.0,"gradingScore":0.0,"avgTeachingScore":0.0,"avgWorkloadScore":0.0,"reviewCount":0,"topTags":null}],"total":4,"page":1,"size":1}}

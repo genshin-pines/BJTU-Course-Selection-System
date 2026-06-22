@@ -6,11 +6,13 @@ import com.bjtu.review.mapper.CourseMapper;
 import com.bjtu.review.service.CourseService;
 import com.bjtu.review.service.PageResult;
 import com.bjtu.review.vo.CourseVO;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class CourseServiceImpl implements CourseService {
 
@@ -77,8 +79,18 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public Map<String, List<String>> getFilterOptions() {
         Map<String, List<String>> options = new java.util.HashMap<>();
-        options.put("departments", courseMapper.selectDistinctDepartments());
-        options.put("teachers", courseMapper.selectDistinctTeachers());
+        options.put("departments", safeLoadFilterOptions("departments", courseMapper::selectDistinctDepartments));
+        options.put("teachers", safeLoadFilterOptions("teachers", courseMapper::selectDistinctTeachers));
         return options;
+    }
+
+    private List<String> safeLoadFilterOptions(String name, java.util.function.Supplier<List<String>> supplier) {
+        try {
+            List<String> values = supplier.get();
+            return values == null ? List.of() : values;
+        } catch (Exception e) {
+            log.error("Failed to load course filter option '{}'", name, e);
+            return List.of();
+        }
     }
 }

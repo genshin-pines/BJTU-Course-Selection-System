@@ -20,9 +20,16 @@ read -r -s -p "Set MySQL password for ${DB_USER}: " DB_PASSWORD
 echo
 read -r -s -p "Set JWT secret, at least 32 chars: " JWT_SECRET
 echo
+read -r -p "Set SMTP username for verification email, blank to keep disabled: " MAIL_USERNAME
+if [[ -n "${MAIL_USERNAME}" ]]; then
+  read -r -s -p "Set SMTP auth code/password for ${MAIL_USERNAME}: " MAIL_PASSWORD
+  echo
+else
+  MAIL_PASSWORD=""
+fi
 
-if [[ "${DB_PASSWORD}" == *"'"* || "${JWT_SECRET}" == *"'"* ]]; then
-  echo "For this setup script, do not use single quotes in the MySQL password or JWT secret."
+if [[ "${DB_PASSWORD}" == *"'"* || "${JWT_SECRET}" == *"'"* || "${MAIL_USERNAME}" == *"'"* || "${MAIL_PASSWORD}" == *"'"* ]]; then
+  echo "For this setup script, do not use single quotes in passwords, secrets, or mail settings."
   exit 1
 fi
 
@@ -59,6 +66,7 @@ FLUSH PRIVILEGES;
 SQL
 
 mysql < backend/src/main/resources/db/schema.sql
+mysql < backend/src/main/resources/db/migration_align_current_schema.sql
 
 mkdir -p "${APP_DIR}" "${ENV_DIR}"
 rsync -a --delete \
@@ -73,6 +81,10 @@ SPRING_DATASOURCE_URL=jdbc:mysql://127.0.0.1:3306/${DB_NAME}?useUnicode=true&cha
 SPRING_DATASOURCE_USERNAME=${DB_USER}
 SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
 JWT_SECRET=${JWT_SECRET}
+SPRING_MAIL_HOST=smtp.qq.com
+SPRING_MAIL_PORT=587
+SPRING_MAIL_USERNAME=${MAIL_USERNAME:-your-email@qq.com}
+SPRING_MAIL_PASSWORD=${MAIL_PASSWORD:-your-auth-code}
 EOF
 chmod 600 "${ENV_DIR}/bjtu-review.env"
 chown -R www-data:www-data "${APP_DIR}" "${ENV_DIR}"
@@ -93,7 +105,8 @@ rm -f /etc/nginx/sites-enabled/default
 
 nginx -t
 systemctl daemon-reload
-systemctl enable --now bjtu-review
+systemctl enable bjtu-review
+systemctl restart bjtu-review
 systemctl reload nginx
 
 echo "Done. Open: http://$(curl -fsS ifconfig.me || hostname -I | awk '{print $1}')"

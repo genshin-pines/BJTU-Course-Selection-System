@@ -22,7 +22,7 @@ public interface ReportMapper extends BaseMapper<Report> {
             "LEFT JOIN voter_record author_record ON rv.voter_record_id = author_record.id " +
             "LEFT JOIN voter_record reporter_record ON rp.reporter_record_id = reporter_record.id " +
             "LEFT JOIN course_instance ci ON rv.course_instance_id = ci.id " +
-            "LEFT JOIN course_base cb ON ci.course_base_id = cb.id " +
+            "LEFT JOIN course_base cb ON cb.id = COALESCE(ci.course_base_id, rv.course_id) " +
             "LEFT JOIN teacher t ON rv.teacher_id = t.id ";
 
     @Select(REPORT_SELECT_COLUMNS +

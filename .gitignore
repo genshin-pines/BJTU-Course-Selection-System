@@ -16,7 +16,17 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
+*.bin
+*-test.json
+api-*.json
 
 # Env
 .env
 .env.local
+*.env
+!deploy/*.env.example
+
+# Deploy archives
+*.tar.gz
+*.zip

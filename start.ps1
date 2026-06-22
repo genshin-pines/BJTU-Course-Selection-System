@@ -157,9 +157,13 @@ function Get-MysqlScalar {
     }
 
     try {
-        $output = & mysql @args 2>$null
+        $output = & mysql @args 2>&1
         if ($LASTEXITCODE -ne 0) {
-            throw "mysql command failed"
+            $message = ($output | Out-String).Trim()
+            if (-not $message) {
+                $message = "mysql command failed"
+            }
+            throw $message
         }
     }
     finally {
@@ -206,35 +210,51 @@ function Test-DatabaseSchema {
     )
 
     $requiredColumns = @(
+        @{ Table = "student"; Column = "current_session_id" },
         @{ Table = "review"; Column = "voter_record_id" },
         @{ Table = "review"; Column = "anonymous_user_key" },
         @{ Table = "review"; Column = "course_instance_id" },
         @{ Table = "review"; Column = "downvote_count" },
+        @{ Table = "review"; Column = "hide_reason" },
         @{ Table = "review_vote"; Column = "voter_record_id" },
         @{ Table = "review_vote"; Column = "vote_type" },
         @{ Table = "report"; Column = "reporter_record_id" },
         @{ Table = "review_exam_exp"; Column = "key_chapters" },
         @{ Table = "review_exam_exp"; Column = "cheat_sheet_allowed" },
         @{ Table = "admin"; Column = "role" },
-        @{ Table = "admin"; Column = "department" }
+        @{ Table = "admin"; Column = "department" },
+        @{ Table = "admin"; Column = "current_session_id" }
     )
 
     $missing = New-Object System.Collections.Generic.List[string]
 
-    foreach ($table in $requiredTables) {
-        $query = "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$dbName' AND TABLE_NAME='$table';"
-        $exists = Get-MysqlScalar -Database $dbName -Username $dbUser -Password $dbPassword -Query $query
-        if ([int]$exists -eq 0) {
-            $missing.Add("table $table")
+    try {
+        foreach ($table in $requiredTables) {
+            $query = "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$dbName' AND TABLE_NAME='$table';"
+            $exists = Get-MysqlScalar -Database $dbName -Username $dbUser -Password $dbPassword -Query $query
+            if ([int]$exists -eq 0) {
+                $missing.Add("table $table")
+            }
         }
-    }
 
-    foreach ($item in $requiredColumns) {
-        $query = "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='$dbName' AND TABLE_NAME='$($item.Table)' AND COLUMN_NAME='$($item.Column)';"
-        $exists = Get-MysqlScalar -Database $dbName -Username $dbUser -Password $dbPassword -Query $query
-        if ([int]$exists -eq 0) {
-            $missing.Add("column $($item.Table).$($item.Column)")
+        foreach ($item in $requiredColumns) {
+            $query = "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='$dbName' AND TABLE_NAME='$($item.Table)' AND COLUMN_NAME='$($item.Column)';"
+            $exists = Get-MysqlScalar -Database $dbName -Username $dbUser -Password $dbPassword -Query $query
+            if ([int]$exists -eq 0) {
+                $missing.Add("column $($item.Table).$($item.Column)")
+            }
         }
+    } catch {
+        Write-Warning "Could not connect to MySQL with the datasource credentials in backend/src/main/resources/application.yml."
+        Write-Host "Database: $dbName"
+        Write-Host "Username: $dbUser"
+        Write-Host ""
+        Write-Host "Original mysql error:"
+        Write-Host "  $($_.Exception.Message)"
+        Write-Host ""
+        Write-Host "Fix the datasource username/password first, then rerun:"
+        Write-Host "  .\start.ps1 -CheckOnly"
+        throw "Database connection check failed."
     }
 
     if ($missing.Count -gt 0) {
@@ -245,6 +265,8 @@ function Test-DatabaseSchema {
         Write-Host ""
         Write-Host "Recommended init:"
         Write-Host "  backend/src/main/resources/db/schema.sql"
+        Write-Host "Recommended existing-db alignment:"
+        Write-Host "  backend/src/main/resources/db/migration_align_current_schema.sql"
         Write-Host ""
         Write-Host "See backend/src/main/resources/db/README.md for details."
         throw "Database schema check failed."

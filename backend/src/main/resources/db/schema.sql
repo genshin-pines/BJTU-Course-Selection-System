@@ -216,35 +216,45 @@ CREATE TABLE IF NOT EXISTS admin
 -- =============================================
 
 -- 管理员账号（密码 123456）
-INSERT INTO admin (username, password, role, department) VALUES
+INSERT IGNORE INTO admin (username, password, role, department) VALUES
     ('admin', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', 'SUPER_ADMIN', NULL),
     ('dept_op', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', 'DEPT_OP', '计算机与信息技术学院'),
     ('auditor', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', 'AUDITOR', NULL);
 
 -- 预设标签
-INSERT INTO tag (tag_name) VALUES
-    ('给分好'), ('课程有趣'), ('老师负责'), ('作业少'),
-    ('考试简单'), ('干货多'), ('点名少'), ('水课');
+INSERT INTO tag (tag_name) SELECT '给分好' WHERE NOT EXISTS (SELECT 1 FROM tag WHERE tag_name = '给分好');
+INSERT INTO tag (tag_name) SELECT '课程有趣' WHERE NOT EXISTS (SELECT 1 FROM tag WHERE tag_name = '课程有趣');
+INSERT INTO tag (tag_name) SELECT '老师负责' WHERE NOT EXISTS (SELECT 1 FROM tag WHERE tag_name = '老师负责');
+INSERT INTO tag (tag_name) SELECT '作业少' WHERE NOT EXISTS (SELECT 1 FROM tag WHERE tag_name = '作业少');
+INSERT INTO tag (tag_name) SELECT '考试简单' WHERE NOT EXISTS (SELECT 1 FROM tag WHERE tag_name = '考试简单');
+INSERT INTO tag (tag_name) SELECT '干货多' WHERE NOT EXISTS (SELECT 1 FROM tag WHERE tag_name = '干货多');
+INSERT INTO tag (tag_name) SELECT '点名少' WHERE NOT EXISTS (SELECT 1 FROM tag WHERE tag_name = '点名少');
+INSERT INTO tag (tag_name) SELECT '水课' WHERE NOT EXISTS (SELECT 1 FROM tag WHERE tag_name = '水课');
 
 -- 示例学生（密码均为 123456，BCrypt加密）
-INSERT INTO student (student_no, name, anonymous_id, password, major, grade) VALUES
+INSERT IGNORE INTO student (student_no, name, anonymous_id, password, major, grade) VALUES
     ('2022111111', '张三', '匿名用户A001', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', '计算机科学与技术', '2022'),
     ('2022111112', '李四', '匿名用户B002', '$2a$10$K2ylcuE/FXU5Q2bDxnDdbe2pbH2TmB/XywhrzwnrTMhpCnQpF2jjy', '软件工程', '2022');
 
 -- 示例教师
-INSERT INTO teacher (teacher_name, department) VALUES
-    ('王教授', '计算机与信息技术学院'),
-    ('李教授', '软件学院'),
-    ('张教授', '电子信息工程学院');
+INSERT INTO teacher (teacher_name, department)
+SELECT '王教授', '计算机与信息技术学院'
+WHERE NOT EXISTS (SELECT 1 FROM teacher WHERE teacher_name = '王教授' AND department = '计算机与信息技术学院');
+INSERT INTO teacher (teacher_name, department)
+SELECT '李教授', '软件学院'
+WHERE NOT EXISTS (SELECT 1 FROM teacher WHERE teacher_name = '李教授' AND department = '软件学院');
+INSERT INTO teacher (teacher_name, department)
+SELECT '张教授', '电子信息工程学院'
+WHERE NOT EXISTS (SELECT 1 FROM teacher WHERE teacher_name = '张教授' AND department = '电子信息工程学院');
 
 -- 示例课程与开课实例（一师一课一实例）
-INSERT INTO course_base (course_code, course_name, credit, department) VALUES
+INSERT IGNORE INTO course_base (course_code, course_name, credit, department) VALUES
     ('CST301', '数据库系统原理', 3, '计算机与信息技术学院'),
     ('CST302', '操作系统', 4, '计算机与信息技术学院'),
     ('SWE201', '软件工程', 3, '软件学院'),
     ('EEE101', '信号与系统', 4, '电子信息工程学院');
 
-INSERT INTO course_instance (course_base_id, teacher_id) VALUES
+INSERT IGNORE INTO course_instance (course_base_id, teacher_id) VALUES
     (1, 1),
     (2, 1),
     (3, 2),

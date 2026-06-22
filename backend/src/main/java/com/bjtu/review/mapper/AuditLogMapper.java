@@ -22,7 +22,7 @@ public interface AuditLogMapper extends BaseMapper<AuditLog> {
             "LEFT JOIN review rv ON al.review_id = rv.id " +
             "LEFT JOIN voter_record vr ON rv.voter_record_id = vr.id " +
             "LEFT JOIN course_instance ci ON rv.course_instance_id = ci.id " +
-            "LEFT JOIN course_base cb ON ci.course_base_id = cb.id " +
+            "LEFT JOIN course_base cb ON cb.id = COALESCE(ci.course_base_id, rv.course_id) " +
             "LEFT JOIN teacher t ON rv.teacher_id = t.id " +
             "WHERE 1 = 1 " +
             "<if test='role == \"AUDITOR\"'>" +
