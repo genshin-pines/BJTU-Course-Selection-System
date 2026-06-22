@@ -24,7 +24,7 @@ public interface CourseInstanceMapper extends BaseMapper<CourseInstance> {
     CourseInstance selectByCourseBaseIdAndTeacherId(Long courseBaseId, Long teacherId);
 
     @Update("UPDATE course_instance SET " +
-            "avg_score = (SELECT COALESCE(AVG(overall_score), 0) FROM review WHERE course_instance_id = #{courseInstanceId} AND status IN ('PUBLISHED', 'APPROVED')), " +
+            "avg_score = (SELECT COALESCE(AVG((grading_score + teaching_score + workload_score) / 3.0), 0) FROM review WHERE course_instance_id = #{courseInstanceId} AND status IN ('PUBLISHED', 'APPROVED')), " +
             "grading_score = (SELECT COALESCE(AVG(grading_score), 0) FROM review WHERE course_instance_id = #{courseInstanceId} AND status IN ('PUBLISHED', 'APPROVED')), " +
             "avg_teaching_score = (SELECT COALESCE(AVG(teaching_score), 0) FROM review WHERE course_instance_id = #{courseInstanceId} AND status IN ('PUBLISHED', 'APPROVED')), " +
             "avg_workload_score = (SELECT COALESCE(AVG(workload_score), 0) FROM review WHERE course_instance_id = #{courseInstanceId} AND status IN ('PUBLISHED', 'APPROVED')), " +

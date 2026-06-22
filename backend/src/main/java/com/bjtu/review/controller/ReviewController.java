@@ -73,6 +73,12 @@ public class ReviewController {
         return Result.ok(reviewService.getStudentReview(studentId, id));
     }
 
+    @GetMapping("/mine/all")
+    public Result<List<ReviewVO>> getMyAllReviews(Authentication auth) {
+        Long studentId = (Long) auth.getPrincipal();
+        return Result.ok(reviewService.getMyAllReviews(studentId));
+    }
+
     @GetMapping("/instance/{instanceId}/liked")
     public Result<List<Long>> getLikedReviewIdsByInstance(Authentication auth, @PathVariable Long instanceId) {
         Long studentId = (Long) auth.getPrincipal();

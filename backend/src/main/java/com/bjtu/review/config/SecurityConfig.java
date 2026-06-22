@@ -68,6 +68,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/review/like/**").hasRole("STUDENT")
                 .requestMatchers(HttpMethod.POST, "/api/review/downvote/**").hasRole("STUDENT")
                 .requestMatchers(HttpMethod.POST, "/api/report").hasRole("STUDENT")
+                // 课程申请
+                .requestMatchers("/api/course-application/**").hasRole("STUDENT")
                 // 管理接口
                 .requestMatchers("/api/auth/admin/**").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")

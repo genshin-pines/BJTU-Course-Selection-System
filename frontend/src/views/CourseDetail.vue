@@ -1,41 +1,33 @@
 <template>
-  <div class="detail-container" v-loading="loading">
-    <el-card class="course-header" v-if="course">
-      <div class="header-main">
-        <div class="header-info">
-          <h1>
-            {{ course.courseName }}
-            <el-tag>{{ course.courseCode }}</el-tag>
-          </h1>
-          <p class="meta">
-            <el-icon><User /></el-icon>
-            {{ course.teacherName || '未分配教师' }}
-            <el-divider direction="vertical" />
-            {{ course.department }}
-            <el-divider direction="vertical" />
-            {{ course.credit }} 学分
-            <el-divider direction="vertical" />
-            {{ course.reviewCount }} 条评价
-          </p>
-        </div>
-        <div class="header-scores">
-          <div class="big-score">
-            <span class="big-number">{{ course.avgScore?.toFixed(1) || '-' }}</span>
-            <span class="big-label">综合评分</span>
+  <div class="detail-page" v-loading="loading">
+    <!-- 课程信息 Hero -->
+    <section class="course-hero" v-if="course">
+      <div class="hero-bg"></div>
+      <div class="hero-content">
+        <div class="hero-left">
+          <div class="hero-tags">
+            <span class="code-chip">{{ course.courseCode }}</span>
+            <span class="dept-chip">{{ course.department }}</span>
           </div>
-          <div class="sub-scores">
-            <span>给分 {{ course.gradingScore?.toFixed(1) || '-' }}</span>
-            <span>授课 {{ course.avgTeachingScore?.toFixed(1) || '-' }}</span>
-            <span>作业 {{ course.avgWorkloadScore?.toFixed(1) || '-' }}</span>
+          <h1 class="hero-title">{{ course.courseName }}</h1>
+          <div class="hero-meta">
+            <span class="meta-pill"><el-icon><Avatar /></el-icon>{{ course.teacherName || '待定教师' }}</span>
+            <span class="meta-pill"><el-icon><Reading /></el-icon>{{ course.credit }} 学分</span>
           </div>
         </div>
+        <div class="hero-action">
+          <el-button type="primary" size="large" round @click="goPostReview">
+            <el-icon><EditPen /></el-icon>
+            {{ myReview ? '修改评价' : '写评价' }}
+          </el-button>
+        </div>
       </div>
-      <div class="header-actions">
-        <el-button type="primary" @click="goPostReview">
-          {{ myReview ? '修改评价' : '写评价' }}
-        </el-button>
-      </div>
-    </el-card>
+    </section>
+
+    <!-- 评分汇总 -->
+    <section class="summary-section" v-if="course">
+      <RatingSummary :course="course" />
+    </section>
 
     <el-alert
       v-if="myReview?.status === 'HIDDEN'"
@@ -43,132 +35,39 @@
       :closable="false"
       show-icon
       :title="`您的评价已被隐藏${myReview.hideReason ? `（${myReview.hideReason}）` : ''}，请修改后重新提交`"
-      style="margin-bottom: 16px"
+      class="hide-alert"
     />
 
+    <!-- 评价列表 -->
+    <section class="reviews-section">
+      <ReviewToolbar
+        v-model:sortBy="reviewSortBy"
+        v-model:selectedTagIds="selectedTagIds"
+        :tags="tags"
+        @change="loadReviews"
+      />
 
-    <div class="reviews-section">
-      <div class="reviews-toolbar">
-        <h2>课程评价</h2>
-        <div class="reviews-filters">
-          <el-select
-            v-model="selectedTagIds"
-            size="small"
-            placeholder="按标签筛选"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
-            clearable
-            style="width: 220px"
-            @change="loadReviews"
-          >
-            <el-option
-              v-for="tag in tags"
-              :key="tag.id"
-              :label="tag.tagName"
-              :value="tag.id"
-            />
-          </el-select>
-          <el-select
-            v-model="reviewSortBy"
-            size="small"
-            style="width: 180px"
-            @change="loadReviews"
-          >
-            <el-option label="质量优先" value="quality" />
-            <el-option label="最新优先" value="latest" />
-            <el-option label="高分优先" value="highScore" />
-            <el-option label="有用优先" value="useful" />
-            <el-option label="争议优先" value="controversial" />
-          </el-select>
-        </div>
+      <div class="review-list">
+        <el-empty v-if="reviews.length === 0" description="暂无评价，快来写第一条吧！" />
+        <ReviewCard
+          v-for="review in reviews"
+          :key="review.id"
+          :review="review"
+          :voting="votingReviewIds.has(review.id)"
+          :show-vote="true"
+          :show-report="true"
+          @like="handleLike(review)"
+          @downvote="handleDownvote(review)"
+          @report="showReportDialog(review)"
+          @edit="goEditReview(review.id)"
+        />
       </div>
-      <el-empty v-if="reviews.length === 0" description="暂无评价，快来写第一条吧！" />
-
-      <el-card v-for="review in reviews" :key="review.id" class="review-card">
-        <div class="review-header">
-          <div class="reviewer">
-            <el-avatar :size="36" icon="UserFilled" />
-            <div>
-              <div class="reviewer-name">{{ review.anonymousId }}</div>
-              <div class="review-time">{{ formatTime(review.createTime) }}</div>
-            </div>
-          </div>
-          <div class="review-scores">
-            <el-tag type="primary">给分 {{ review.gradingScore }}</el-tag>
-            <el-tag type="success">授课 {{ review.teachingScore }}</el-tag>
-            <el-tag type="warning">作业 {{ review.workloadScore }}</el-tag>
-          </div>
-        </div>
-
-        <div class="review-content">{{ review.content }}</div>
-
-        <div class="review-tags" v-if="review.tags?.length">
-          <el-tag v-for="tag in review.tags" :key="tag.id" size="small" type="info">
-            {{ tag.tagName }}
-          </el-tag>
-        </div>
-
-        <div class="review-meta" v-if="review.studyTips">
-          <strong>学习建议：</strong>{{ review.studyTips }}
-        </div>
-        <div class="review-meta" v-if="review.examType">
-          <strong>考核方式：</strong>{{ review.examType }}
-        </div>
-
-        <div class="review-meta" v-if="review.keyChapters">
-          <strong>重点章节：</strong>{{ review.keyChapters }}
-        </div>
-        <div class="review-meta" v-if="review.cheatSheetAllowed !== null && review.cheatSheetAllowed !== undefined">
-          <strong>可带资料：</strong>{{ review.cheatSheetAllowed ? '可以' : '不可以' }}
-        </div>
-
-        <div class="review-actions">
-          <el-button
-            text
-            :type="review.liked ? 'primary' : ''"
-            :loading="votingReviewIds.has(review.id)"
-            :disabled="votingReviewIds.has(review.id)"
-            @click="handleLike(review)"
-          >
-            <el-icon><CaretTop /></el-icon>
-            有用 {{ review.likeCount || 0 }}
-          </el-button>
-          <el-button
-            text
-            :type="review.downvoted ? 'warning' : ''"
-            :loading="votingReviewIds.has(review.id)"
-            :disabled="votingReviewIds.has(review.id)"
-            @click="handleDownvote(review)"
-          >
-            <el-icon><CaretBottom /></el-icon>
-            没用 {{ review.downvoteCount || 0 }}
-          </el-button>
-          <el-button text type="danger" @click="showReportDialog(review)">
-            <el-icon><Warning /></el-icon>
-            举报
-          </el-button>
-          <el-button
-            v-if="review.isOwner"
-            text
-            type="primary"
-            @click="goEditReview(review.id)"
-          >
-            修改评价
-          </el-button>
-        </div>
-      </el-card>
-    </div>
+    </section>
 
     <el-dialog v-model="reportVisible" title="举报评价" width="480px">
       <el-form :model="reportForm">
         <el-form-item label="举报原因">
-          <el-input
-            v-model="reportForm.reason"
-            type="textarea"
-            :rows="3"
-            placeholder="请描述举报原因"
-          />
+          <el-input v-model="reportForm.reason" type="textarea" :rows="3" placeholder="请描述举报原因" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -183,12 +82,15 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Avatar, Reading, EditPen } from '@element-plus/icons-vue'
 import { courseApi } from '@/api/course'
 import { reviewApi } from '@/api/review'
 import { reportApi } from '@/api/report'
 import { tagApi } from '@/api/tag'
 import { useAuthStore } from '@/stores/auth'
-import { CaretBottom, CaretTop, User, Warning } from '@element-plus/icons-vue'
+import RatingSummary from '@/components/review/RatingSummary.vue'
+import ReviewToolbar from '@/components/review/ReviewToolbar.vue'
+import ReviewCard from '@/components/review/ReviewCard.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -227,19 +129,29 @@ async function loadReviews() {
     reviewSortBy.value,
     selectedTagIds.value
   )
-  reviews.value = reviewRes.data || []
+  const list = reviewRes.data || []
+  // 按发布时间升序分配序号，生成"交大学子_N"匿名展示名
+  const chrono = [...list].sort((a, b) => {
+    const ta = a.createTime ? new Date(a.createTime).getTime() : 0
+    const tb = b.createTime ? new Date(b.createTime).getTime() : 0
+    return ta - tb
+  })
+  const seqMap = new Map()
+  chrono.forEach((r, idx) => {
+    seqMap.set(r.id, idx + 1)
+  })
+  list.forEach((r) => {
+    r.displayName = `交大学子_${seqMap.get(r.id) || 0}`
+  })
+  reviews.value = list
   await Promise.all([markVoteStates(), loadMyReview()])
 }
 
 async function loadMyReview() {
   myReview.value = null
   const valid = await authStore.verifySession()
-  if (!valid || !authStore.isStudent) {
-    return
-  }
-  if (!course.value) {
-    return
-  }
+  if (!valid || !authStore.isStudent) return
+  if (!course.value) return
   try {
     const res = await reviewApi.getMine({
       courseId: course.value.id,
@@ -256,16 +168,12 @@ async function loadTags() {
   try {
     const res = await tagApi.getAll()
     tags.value = res.data || []
-  } catch (e) {
-    console.error(e)
-  }
+  } catch (e) { console.error(e) }
 }
 
 async function markVoteStates() {
   const valid = await authStore.verifySession()
-  if (!valid || !authStore.isStudent || reviews.value.length === 0) {
-    return
-  }
+  if (!valid || !authStore.isStudent || reviews.value.length === 0) return
   const [likedRes, downvotedRes] = await Promise.all([
     reviewApi.getLikedByInstance(instanceId.value),
     reviewApi.getDownvotedByInstance(instanceId.value)
@@ -294,66 +202,39 @@ async function ensureStudent() {
 }
 
 async function goPostReview() {
-  if (!await ensureStudent()) {
-    return
-  }
-  if (myReview.value?.id) {
-    goEditReview(myReview.value.id)
-    return
-  }
+  if (!await ensureStudent()) return
+  if (myReview.value?.id) { goEditReview(myReview.value.id); return }
   router.push(`/post-review/${instanceId.value}`)
 }
 
 async function goEditReview(reviewId) {
-  if (!await ensureStudent()) {
-    return
-  }
+  if (!await ensureStudent()) return
   router.push(`/edit-review/${reviewId}`)
 }
 
 async function handleLike(review) {
-  if (!await ensureStudent()) {
-    return
-  }
-  if (votingReviewIds.value.has(review.id)) {
-    return
-  }
+  if (!await ensureStudent()) return
+  if (votingReviewIds.value.has(review.id)) return
   setReviewVoting(review.id, true)
   try {
     const res = await reviewApi.like(review.id)
     applyVoteResult(review, res.data)
-  } catch (e) {
-    showVoteError(e)
-  } finally {
-    setReviewVoting(review.id, false)
-  }
+  } catch (e) { showVoteError(e) } finally { setReviewVoting(review.id, false) }
 }
 
 async function handleDownvote(review) {
-  if (!await ensureStudent()) {
-    return
-  }
-  if (votingReviewIds.value.has(review.id)) {
-    return
-  }
+  if (!await ensureStudent()) return
+  if (votingReviewIds.value.has(review.id)) return
   setReviewVoting(review.id, true)
   try {
     const res = await reviewApi.downvote(review.id)
     applyVoteResult(review, res.data)
-  } catch (e) {
-    showVoteError(e)
-  } finally {
-    setReviewVoting(review.id, false)
-  }
+  } catch (e) { showVoteError(e) } finally { setReviewVoting(review.id, false) }
 }
 
 function setReviewVoting(reviewId, voting) {
   const next = new Set(votingReviewIds.value)
-  if (voting) {
-    next.add(reviewId)
-  } else {
-    next.delete(reviewId)
-  }
+  if (voting) next.add(reviewId); else next.delete(reviewId)
   votingReviewIds.value = next
 }
 
@@ -369,9 +250,7 @@ function showVoteError(error) {
 }
 
 async function showReportDialog(review) {
-  if (!await ensureStudent()) {
-    return
-  }
+  if (!await ensureStudent()) return
   currentReview.value = review
   reportForm.value.reason = ''
   reportVisible.value = true
@@ -383,20 +262,10 @@ async function handleReport() {
     return
   }
   try {
-    await reportApi.submit({
-      reviewId: currentReview.value.id,
-      reason: reportForm.value.reason.trim()
-    })
+    await reportApi.submit({ reviewId: currentReview.value.id, reason: reportForm.value.reason.trim() })
     ElMessage.success('举报已提交')
     reportVisible.value = false
-  } catch (e) {
-    // Global interceptor handles request errors.
-  }
-}
-
-function formatTime(time) {
-  if (!time) return ''
-  return new Date(time).toLocaleString('zh-CN')
+  } catch (e) {}
 }
 
 onMounted(async () => {
@@ -405,162 +274,143 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.detail-container {
-  max-width: 900px;
+.detail-page {
+  max-width: 940px;
   margin: 0 auto;
+  padding: 0 0 48px;
 }
 
-.course-header {
-  margin-bottom: 24px;
+/* —— 课程 Hero —— */
+.course-hero {
+  position: relative;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  margin: 0 16px 20px;
+  box-shadow: var(--shadow-md);
 }
-
-.header-main {
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  background: var(--brand-gradient-vibrant);
+}
+.hero-bg::before,
+.hero-bg::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.45;
+}
+.hero-bg::before {
+  width: 280px; height: 280px;
+  background: #7dd3fc;
+  top: -80px; right: -40px;
+}
+.hero-bg::after {
+  width: 240px; height: 240px;
+  background: #60a5fa;
+  bottom: -80px; left: -40px;
+}
+.hero-content {
+  position: relative;
+  z-index: 2;
+  padding: 32px 36px;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  gap: 24px;
+  color: #fff;
 }
-
-.header-info h1 {
-  font-size: 24px;
+.hero-left {
+  flex: 1;
+  min-width: 0;
+}
+.hero-tags {
+  display: flex;
+  gap: 8px;
   margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
-
-.meta {
-  color: #888;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.header-scores {
-  text-align: center;
-}
-
-.big-score {
-  background: linear-gradient(135deg, #1a73e8, #4a90d9);
-  color: white;
-  padding: 16px 24px;
-  border-radius: 12px;
-  margin-bottom: 8px;
-}
-
-.big-number {
-  font-size: 36px;
+.code-chip {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 12px;
   font-weight: 700;
-  display: block;
+  padding: 3px 12px;
+  border-radius: var(--r-pill);
+  background: rgba(255,255,255,0.25);
+  backdrop-filter: blur(8px);
 }
-
-.big-label {
-  font-size: 13px;
-  opacity: 0.9;
+.dept-chip {
+  font-size: 12px;
+  padding: 3px 12px;
+  border-radius: var(--r-pill);
+  background: rgba(0,0,0,0.18);
 }
-
-.sub-scores {
+.hero-title {
+  font-size: 30px;
+  font-weight: 800;
+  margin-bottom: 14px;
+  line-height: 1.25;
+}
+.hero-meta {
   display: flex;
-  gap: 16px;
-  color: #666;
-  font-size: 13px;
-  justify-content: center;
-}
-
-.header-actions {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.reviews-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.reviews-toolbar h2 {
-  font-size: 20px;
-  margin-bottom: 0;
-  color: #333;
-}
-
-.reviews-filters {
-  display: flex;
-  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  justify-content: flex-end;
 }
-
-.review-card {
-  margin-bottom: 16px;
-}
-
-.review-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-.reviewer {
-  display: flex;
+.meta-pill {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 5px;
+  font-size: 13px;
+  padding: 5px 14px;
+  border-radius: var(--r-pill);
+  background: rgba(255,255,255,0.18);
+  backdrop-filter: blur(8px);
+}
+.hero-action {
+  flex-shrink: 0;
 }
 
-.reviewer-name {
-  font-weight: 600;
-  color: #333;
+/* —— 汇总区 —— */
+.summary-section {
+  margin: 0 16px 20px;
 }
 
-.review-time {
-  font-size: 12px;
-  color: #999;
+.hide-alert {
+  margin: 0 16px 20px;
+  border-radius: var(--r-md);
 }
 
-.review-scores {
+/* —— 评价区 —— */
+.reviews-section {
+  margin: 0 16px;
+}
+.review-list {
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
 }
 
-.review-content {
-  margin: 12px 0;
-  line-height: 1.8;
-  color: #444;
-}
-
-.review-tags {
-  margin: 8px 0;
-  display: flex;
-  gap: 6px;
-}
-
-.review-meta {
-  margin: 8px 0;
-  font-size: 14px;
-  color: #666;
-}
-
-.review-actions {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #f0f0f0;
-  display: flex;
-  gap: 16px;
-}
-
-@media (max-width: 640px) {
-  .reviews-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
+@media (max-width: 768px) {
+  .course-hero,
+  .summary-section,
+  .hide-alert,
+  .reviews-section {
+    margin-left: 12px;
+    margin-right: 12px;
   }
-
-  .reviews-filters {
-    justify-content: flex-start;
+  .hero-content {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 24px 22px;
+  }
+  .hero-title {
+    font-size: 24px;
+  }
+  .hero-action {
+    width: 100%;
+  }
+  .hero-action .el-button {
     width: 100%;
   }
 }

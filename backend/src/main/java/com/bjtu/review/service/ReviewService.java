@@ -23,6 +23,7 @@ public interface ReviewService {
     ReviewPublishResult editReview(Long studentId, Long reviewId, ReviewRequest request);
     ReviewVO getStudentReview(Long studentId, Long reviewId);
     ReviewVO getMyReviewForCourse(Long studentId, Long courseId, Long courseInstanceId, Long teacherId);
+    List<ReviewVO> getMyAllReviews(Long studentId);
     void deleteReview(Long studentId, Long reviewId);
     VoteResultVO toggleLikeReview(Long studentId, Long reviewId);
     VoteResultVO toggleDownvoteReview(Long studentId, Long reviewId);

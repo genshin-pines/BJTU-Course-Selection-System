@@ -43,6 +43,9 @@ export const reviewApi = {
   getMine(params) {
     return request.get('/review/mine', { params })
   },
+  getMyAllReviews() {
+    return request.get('/review/mine/all')
+  },
   getMineById(id) {
     return request.get(`/review/${id}/mine`)
   },

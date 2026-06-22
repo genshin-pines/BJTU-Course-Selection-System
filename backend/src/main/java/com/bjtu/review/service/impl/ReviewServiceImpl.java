@@ -243,6 +243,17 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     @Override
+    public List<ReviewVO> getMyAllReviews(Long studentId) {
+        List<ReviewVO> list = reviewMapper.selectAllMyReviews(studentId);
+        if (list == null) {
+            return java.util.Collections.emptyList();
+        }
+        list.forEach(this::attachTags);
+        list.forEach(r -> r.setIsOwner(true));
+        return list;
+    }
+
+    @Override
     @Transactional
     public void deleteReview(Long studentId, Long reviewId) {
         Review review = requireReview(reviewId);

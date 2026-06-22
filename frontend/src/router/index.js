@@ -37,6 +37,18 @@ const routes = [
     meta: { title: '修改评价', requiresStudent: true }
   },
   {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('@/views/Profile.vue'),
+    meta: { title: '我的评价', requiresStudent: true }
+  },
+  {
+    path: '/course-application',
+    name: 'CourseApplication',
+    component: () => import('@/views/CourseApplication.vue'),
+    meta: { title: '申请新课程', requiresStudent: true }
+  },
+  {
     path: '/admin/login',
     name: 'AdminLogin',
     component: () => import('@/views/AdminLogin.vue'),

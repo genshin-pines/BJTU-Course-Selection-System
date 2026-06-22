@@ -26,6 +26,7 @@ import com.bjtu.review.mapper.TeacherMapper;
 import com.bjtu.review.service.ReportService;
 import com.bjtu.review.service.ReviewService;
 import com.bjtu.review.service.TagService;
+import com.bjtu.review.service.CourseApplicationService;
 import com.bjtu.review.service.PageResult;
 import cn.hutool.core.text.csv.CsvData;
 import cn.hutool.core.text.csv.CsvReader;
@@ -33,6 +34,7 @@ import cn.hutool.core.text.csv.CsvRow;
 import cn.hutool.core.text.csv.CsvUtil;
 import com.bjtu.review.vo.AdminAccountVO;
 import com.bjtu.review.vo.AuditLogVO;
+import com.bjtu.review.vo.CourseApplicationVO;
 import com.bjtu.review.vo.CourseInstanceVO;
 import com.bjtu.review.vo.ImportResultVO;
 import com.bjtu.review.vo.ReportVO;
@@ -86,12 +88,14 @@ public class AdminController {
     private final TeacherMapper teacherMapper;
     private final CourseInstanceMapper courseInstanceMapper;
     private final ReviewMapper reviewMapper;
+    private final CourseApplicationService courseApplicationService;
 
     public AdminController(ReviewService reviewService, ReportService reportService,
                            TagService tagService, AuditLogMapper auditLogMapper,
                            AdminMapper adminMapper, PasswordEncoder passwordEncoder,
                            CourseBaseMapper courseBaseMapper, TeacherMapper teacherMapper,
-                           CourseInstanceMapper courseInstanceMapper, ReviewMapper reviewMapper) {
+                           CourseInstanceMapper courseInstanceMapper, ReviewMapper reviewMapper,
+                           CourseApplicationService courseApplicationService) {
         this.reviewService = reviewService;
         this.reportService = reportService;
         this.tagService = tagService;
@@ -102,12 +106,37 @@ public class AdminController {
         this.teacherMapper = teacherMapper;
         this.courseInstanceMapper = courseInstanceMapper;
         this.reviewMapper = reviewMapper;
+        this.courseApplicationService = courseApplicationService;
     }
 
     @GetMapping("/reviews/pending")
     public Result<List<ReviewVO>> getPendingReviews(Authentication auth) {
         requireContentGovernance(auth);
         return Result.ok(reviewService.getPendingReviews());
+    }
+
+    // ===== 课程申请审核 =====
+
+    @GetMapping("/course-applications/pending")
+    public Result<List<CourseApplicationVO>> getPendingCourseApplications(Authentication auth) {
+        requireContentGovernance(auth);
+        return Result.ok(courseApplicationService.getPendingApplications());
+    }
+
+    @PutMapping("/course-applications/{id}/approve")
+    public Result<?> approveCourseApplication(Authentication auth, @PathVariable Long id,
+                                               @RequestBody(required = false) AdminOperationRequest request) {
+        requireContentGovernance(auth);
+        courseApplicationService.approve(adminId(auth), id, reason(request));
+        return Result.ok();
+    }
+
+    @PutMapping("/course-applications/{id}/reject")
+    public Result<?> rejectCourseApplication(Authentication auth, @PathVariable Long id,
+                                              @RequestBody(required = false) AdminOperationRequest request) {
+        requireContentGovernance(auth);
+        courseApplicationService.reject(adminId(auth), id, reason(request));
+        return Result.ok();
     }
 
     @GetMapping("/reviews")

@@ -1,97 +1,39 @@
 <template>
-  <div id="app-container">
-    <el-container>
-      <el-header class="app-header">
-        <div class="header-left">
-          <router-link to="/" class="logo">BJTU 课程评价</router-link>
-        </div>
-        <div class="header-right">
-          <template v-if="authStore.isLoggedIn">
-            <span class="user-info" v-if="authStore.isStudent">
-              {{ authStore.userInfo?.anonymousId || authStore.userInfo?.studentNo }}
-            </span>
-            <span class="user-info" v-else>管理员</span>
-            <el-button text @click="handleLogout">退出</el-button>
-          </template>
-          <template v-else>
-            <el-button text @click="$router.push('/login')">学生登录</el-button>
-            <el-button text @click="$router.push('/admin/login')">管理员登录</el-button>
-          </template>
-        </div>
-      </el-header>
-      <el-main>
-        <router-view />
-      </el-main>
-    </el-container>
+  <div id="app-root">
+    <AppHeader />
+    <main class="app-main">
+      <router-view v-slot="{ Component }">
+        <transition name="fade-slide" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
+    </main>
+    <AppFooter />
   </div>
 </template>
 
 <script setup>
 import { onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import AppHeader from '@/components/layout/AppHeader.vue'
+import AppFooter from '@/components/layout/AppFooter.vue'
 
 const authStore = useAuthStore()
-const router = useRouter()
 
 onMounted(() => {
   authStore.verifySession()
 })
-
-function handleLogout() {
-  authStore.logout()
-  ElMessage.success('已退出登录')
-  router.push('/')
-}
 </script>
 
-<style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background-color: #f5f7fa;
-}
-
-.app-header {
-  background: #1a73e8;
-  color: white;
+<style scoped>
+#app-root {
+  min-height: 100vh;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 32px;
-  height: 56px;
+  flex-direction: column;
 }
 
-.app-header .logo {
-  color: white;
-  font-size: 20px;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.user-info {
-  color: #e8f0fe;
-  font-size: 14px;
-}
-
-.header-right .el-button--text {
-  color: white;
-}
-
-.el-main {
-  min-height: calc(100vh - 56px);
-  padding: 24px 32px;
+.app-main {
+  flex: 1;
+  min-height: calc(100vh - 56px - 56px);
 }
 </style>

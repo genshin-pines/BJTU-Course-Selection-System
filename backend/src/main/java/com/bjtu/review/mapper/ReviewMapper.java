@@ -361,4 +361,34 @@ public interface ReviewMapper extends BaseMapper<Review> {
                                       @Param("teacherId") Long teacherId,
                                       @Param("courseInstanceId") Long courseInstanceId);
 
+    @Select(REVIEW_SELECT_COLUMNS +
+            "WHERE vr.student_id = #{studentId} " +
+            "ORDER BY r.create_time DESC")
+    @Results({
+            @Result(property = "id", column = "id"),
+            @Result(property = "anonymousId", column = "anonymous_id"),
+            @Result(property = "voterRecordId", column = "voter_record_id"),
+            @Result(property = "anonymousUserKey", column = "anonymous_user_key"),
+            @Result(property = "courseInstanceId", column = "course_instance_id"),
+            @Result(property = "courseId", column = "course_id"),
+            @Result(property = "courseName", column = "course_name"),
+            @Result(property = "teacherId", column = "teacher_id"),
+            @Result(property = "teacherName", column = "teacher_name"),
+            @Result(property = "overallScore", column = "overall_score"),
+            @Result(property = "gradingScore", column = "grading_score"),
+            @Result(property = "teachingScore", column = "teaching_score"),
+            @Result(property = "workloadScore", column = "workload_score"),
+            @Result(property = "content", column = "content"),
+            @Result(property = "studyTips", column = "review_study_tips"),
+            @Result(property = "examType", column = "review_exam_type"),
+            @Result(property = "keyChapters", column = "review_key_chapters"),
+            @Result(property = "cheatSheetAllowed", column = "review_cheat_sheet_allowed"),
+            @Result(property = "likeCount", column = "like_count"),
+            @Result(property = "downvoteCount", column = "downvote_count"),
+            @Result(property = "status", column = "status"),
+            @Result(property = "hideReason", column = "hide_reason"),
+            @Result(property = "createTime", column = "create_time"),
+    })
+    List<ReviewVO> selectAllMyReviews(@Param("studentId") Long studentId);
+
 }
